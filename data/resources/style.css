@@ -1,7 +1,0 @@
-progressbar.slim > trough, progressbar.slim > trough > progress {
-  min-height: 4px;
-}
-
-.resources-columnview {
-  background-color: @window_bg_color;
-}
