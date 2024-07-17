@@ -1,26 +1,29 @@
-use std::{cell::Cell, sync::Arc, thread};
+use std::{
+    cell::Cell,
+    cmp::Ordering,
+    sync::{Arc, RwLock},
+    thread,
+};
 
 use chin_tools::wrapper::anyhow::AResult;
+use crossterm::event::KeyModifiers;
 use flume::{Receiver, Sender};
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 use process_data::ProcessData;
 use ratatui::{
-    style::{Color, Style, Stylize},
+    layout::Rect,
+    style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
 };
 use unicode_width::UnicodeWidthChar;
-
-pub const PROCESS_ID: &'static str = "PROCESS";
-
-static PROCESS_WORKER_CHANNEL: Lazy<(Sender<ProcessMsg>, Receiver<ProcessMsg>)> =
-    Lazy::new(|| flume::unbounded());
 
 use crate::{
     app::ResourceEvent,
     component::{
         grouped_lines::GroupedLines,
+        input::Input,
         s_label,
         stateful_lines::{StatefulColumn, StatefulLinesType},
     },
@@ -30,11 +33,34 @@ use crate::{
         units::{conver_storage_width4, convert_seconds},
     },
     tarits::{None2NaN, None2NanString},
-    view::theme::SharedTheme,
-    view::{OverviewArg, PageArg},
+    utils::{is_alt_char, is_char_and_mod, is_esc},
+    view::{theme::SharedTheme, NavigatorEvent, OverviewArg, PageArg},
 };
 
 use super::{Resource, SensorResultType};
+
+pub const PROCESS_ID: &'static str = "PROCESS";
+
+static PROCESS_WORKER_CHANNEL: Lazy<(Sender<ProcessMsg>, Receiver<ProcessMsg>)> =
+    Lazy::new(|| flume::unbounded());
+static PROCESS_SORT_TYPE: Lazy<RwLock<Option<(ProcessCell, bool)>>> =
+    Lazy::new(|| RwLock::new(None));
+
+fn get_process_sort() -> Option<(ProcessCell, bool)> {
+    PROCESS_SORT_TYPE.read().unwrap().clone()
+}
+
+fn try_change_sort(c: ProcessCell) {
+    let sort = get_process_sort();
+
+    if let Ok(mut write) = PROCESS_SORT_TYPE.write() {
+        if let Some((cell, desc)) = sort {
+            write.replace((c, if cell == c { !desc } else { true }));
+        } else {
+            write.replace((c, true));
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct ResProcess {
@@ -45,6 +71,7 @@ pub struct ResProcess {
 
     view_state: StatefulColumn<'static>,
     line_builder: LineBuilder,
+    filter: Option<Input>,
 }
 
 #[derive(Debug)]
@@ -64,6 +91,7 @@ impl ResProcess {
             uptime: Default::default(),
             view_state: StatefulColumn::new(),
             line_builder: LineBuilder::new(),
+            filter: None,
         })
     }
 }
@@ -113,8 +141,11 @@ impl Resource for ResProcess {
         self.view_state.set_header(self.line_builder.to_header());
         self.view_state.update_view_height(args.rect.height);
         if let Some(data) = self.data.as_ref() {
-            self.view_state
-                .update_lines(data, |e, s| self.line_builder.to_line(e, s));
+            self.view_state.update_lines(data, |e, s| {
+                self.line_builder
+                    .to_line(e, s)
+                    .fg(self.theme.fg(args.active))
+            });
         }
 
         Ok("Process".to_string())
@@ -142,10 +173,94 @@ impl Resource for ResProcess {
         PROCESS_ID
     }
 
-    fn handle_page_event(&mut self, _event: &crossterm::event::Event) {}
+    fn handle_navi_event(&mut self, event: &NavigatorEvent) -> bool {
+        match event {
+            NavigatorEvent::KeyEvent(ke) => {
+                if let Some(input) = self.filter.as_mut() {
+                    let handled = input.handle_event(ke);
+                    if handled {
+                        let _ = PROCESS_WORKER_CHANNEL
+                            .0
+                            .send(ProcessMsg::Filter(input.get_input()));
+                        return handled;
+                    }
+                };
+
+                if is_esc(ke) {
+                    self.filter.take();
+                    let _ = PROCESS_WORKER_CHANNEL
+                        .0
+                        .send(ProcessMsg::Filter("".to_string()));
+                    return true;
+                }
+
+                if is_char_and_mod(ke, 's', KeyModifiers::CONTROL) {
+                    self.filter.replace(Input::new());
+                    return true;
+                }
+
+                if is_alt_char(ke, 'p') {
+                    try_change_sort(ProcessCell::PID);
+                    return true;
+                }
+
+                if is_alt_char(ke, 'c') {
+                    try_change_sort(ProcessCell::CPU);
+                    return true;
+                }
+
+                if is_alt_char(ke, 'm') {
+                    try_change_sort(ProcessCell::MEM);
+                    return true;
+                }
+
+                if is_alt_char(ke, 'n') {
+                    try_change_sort(ProcessCell::CMD);
+                    return true;
+                }
+            }
+        }
+        false
+    }
 
     fn get_name(&self) -> String {
         "".to_string()
+    }
+
+    fn render_page(&mut self, frame: &mut ratatui::Frame, args: &mut PageArg) {
+        if let Some(filter) = self.filter.as_mut() {
+            let rect = Rect {
+                y: args.rect.y,
+                height: 1,
+                ..args.rect
+            };
+            filter.draw(frame, &rect);
+        }
+
+        let content_rect = if self.filter.is_some() {
+            Rect {
+                y: args.rect.y.saturating_add(1),
+                height: args.rect.height.saturating_sub(1),
+                ..args.rect
+            }
+        } else {
+            args.rect
+        };
+        if content_rect.height > 0 {
+            match self._build_page(args) {
+                Ok(_) => {}
+                Err(err) => {
+                    tracing::error!("unable to render_page: {}", err);
+                    return;
+                }
+            }
+
+            let lines = self.cached_page_state();
+
+            if let StatefulLinesType::Lines(lines) = lines {
+                lines.render(frame, content_rect)
+            }
+        }
     }
 }
 
@@ -269,13 +384,37 @@ impl ProcessCell {
         s = self.keep_width(s);
         s.into()
     }
+
+    fn cmp(&self, f: &ProcessItem, b: &ProcessItem, desc: bool) -> Ordering {
+        let r = match self {
+            ProcessCell::PID => f.pid.cmp(&b.pid),
+            ProcessCell::PRG => f.display_name.cmp(&b.display_name),
+            ProcessCell::USER => f.user.cmp(&b.user),
+            ProcessCell::CMD => f.commandline.cmp(&b.commandline),
+            ProcessCell::MEM => f.memory_usage.cmp(&b.memory_usage),
+            ProcessCell::CPU => f.cpu_time_ratio.total_cmp(&b.cpu_time_ratio),
+            ProcessCell::READ => f
+                .read_speed
+                .partial_cmp(&b.read_speed)
+                .unwrap_or(Ordering::Equal),
+            ProcessCell::WRITE => f
+                .write_speed
+                .partial_cmp(&b.write_speed)
+                .unwrap_or(Ordering::Equal),
+            ProcessCell::TIME => Ordering::Equal,
+        };
+
+        if desc {
+            r.reverse()
+        } else {
+            r
+        }
+    }
 }
 
 #[derive(Debug)]
 struct LineBuilder {
     labels: Vec<ProcessCell>,
-    sort_filed: ProcessCell,
-    sort_asc: bool,
 }
 
 impl LineBuilder {
@@ -290,27 +429,14 @@ impl LineBuilder {
             ProcessCell::CMD,
         ];
 
-        let mut viewer = Self {
-            labels: header,
-            sort_filed: ProcessCell::CPU,
-            sort_asc: false,
-        };
-
-        viewer.set_sort(ProcessCell::CPU, false);
-
-        viewer
-    }
-
-    pub fn set_sort(&mut self, field: ProcessCell, sort_asc: bool) {
-        self.sort_asc = sort_asc;
-        self.sort_filed = field;
+        Self { labels: header }
     }
 
     fn to_line(&self, item: &ProcessItem, active: bool) -> Line<'static> {
         let spans: Vec<Span<'static>> = self.labels.iter().map(|pc| pc.to_value(item)).collect();
         let line: Line<'static> = spans.into();
         if active {
-            line.bg(Color::DarkGray)
+            line.add_modifier(Modifier::REVERSED)
         } else {
             line
         }
@@ -318,37 +444,47 @@ impl LineBuilder {
 
     fn to_header(&self) -> Line<'static> {
         let mut spans: Vec<Span<'static>> = vec![];
+        let cmp = { PROCESS_SORT_TYPE.read().unwrap().clone() };
+
         for ele in self.labels.iter() {
-            spans.push(ele.to_label(' '))
+            let suffix = if let Some((cell, desc)) = cmp {
+                if cell == *ele {
+                    if desc {
+                        '↓'
+                    } else {
+                        '↑'
+                    }
+                } else {
+                    ' '
+                }
+            } else {
+                ' '
+            };
+
+            spans.push(ele.to_label(suffix))
         }
         spans.into()
     }
 }
 
-pub enum ProcessSortType {
-    PID(bool),
-    Name(bool),
-    CPU(bool),
-    MEM(bool),
-}
-
 pub enum ProcessMsg {
-    Sort(ProcessSortType),
     Detect,
+    Filter(String),
+    ReadOnly,
 }
 
 pub struct Process {}
 
 pub struct ProcessWorker {
-    sort_type: Option<ProcessSortType>,
     app_context: AppsContext,
+    filter: Option<String>,
 }
 
 impl ProcessWorker {
     pub fn spawn(result_tx: &Sender<ResourceEvent>) -> AResult<()> {
         let mut worker = ProcessWorker {
-            sort_type: None,
             app_context: AppsContext::new(),
+            filter: None,
         };
 
         let req_rx = PROCESS_WORKER_CHANNEL.1.clone();
@@ -359,9 +495,6 @@ impl ProcessWorker {
             .spawn(move || loop {
                 if let Ok(msg) = req_rx.recv() {
                     match msg {
-                        ProcessMsg::Sort(sort) => {
-                            worker.sort_type.replace(sort);
-                        }
                         ProcessMsg::Detect => {
                             if let Ok(uptime) = read_proc_uptime() {
                                 let _ = result_tx.send(ResourceEvent::SensorRsp(
@@ -374,6 +507,25 @@ impl ProcessWorker {
                                 ));
                             }
                             worker.updata_data();
+                            let _ = result_tx.send(ResourceEvent::SensorRsp(
+                                crate::resource::SensorRsp::Process(ProcessRsp::Processes(
+                                    Arc::new(worker.get_process_items()),
+                                )),
+                            ));
+                        }
+                        ProcessMsg::Filter(fileter) => {
+                            if !fileter.is_empty() {
+                                worker.filter.replace(fileter);
+                            } else {
+                                worker.filter.take();
+                            }
+                            let _ = result_tx.send(ResourceEvent::SensorRsp(
+                                crate::resource::SensorRsp::Process(ProcessRsp::Processes(
+                                    Arc::new(worker.get_process_items()),
+                                )),
+                            ));
+                        }
+                        ProcessMsg::ReadOnly => {
                             let _ = result_tx.send(ResourceEvent::SensorRsp(
                                 crate::resource::SensorRsp::Process(ProcessRsp::Processes(
                                     Arc::new(worker.get_process_items()),
@@ -399,11 +551,22 @@ impl ProcessWorker {
     }
 
     pub fn get_process_items(&self) -> Vec<ProcessItem> {
-        self.app_context
+        let s = self
+            .app_context
             .process_items()
             .into_iter()
             .map(|(_, v)| v)
-            .sorted_by(|e1, e2| e2.cpu_time_ratio.total_cmp(&e1.cpu_time_ratio))
-            .collect()
+            .filter(|e| {
+                if let Some(f) = self.filter.as_ref() {
+                    e.commandline.contains(f)
+                } else {
+                    true
+                }
+            });
+        if let Some((cell, desc)) = get_process_sort() {
+            s.sorted_by(|e1, e2| cell.cmp(e1, e2, desc)).collect()
+        } else {
+            s.collect()
+        }
     }
 }

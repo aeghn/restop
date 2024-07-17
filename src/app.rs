@@ -7,7 +7,7 @@ use std::{
 
 use chin_tools::wrapper::anyhow::AResult;
 use crossterm::{
-    event::{read, Event, KeyCode, KeyEvent},
+    event::{read, Event, KeyEvent},
     execute,
     terminal::{BeginSynchronizedUpdate, EndSynchronizedUpdate},
 };
@@ -20,7 +20,12 @@ use crate::{
         battery::ResBattery, cpu::ResCPU, drive::ResDrive, gpu::ResGPU, memory::ResMEM,
         network::ResNetwork, process::ResProcess, HardwareWorker, ResourceType, SensorRsp,
     },
-    view::{sidebar_and_page::SidebarAndPage, theme::{SharedTheme, Theme}, LayoutType, Navigator},
+    utils::is_ctrl_c,
+    view::{
+        sidebar_and_page::SidebarAndPage,
+        theme::{SharedTheme, Theme},
+        LayoutType, Navigator, NavigatorArgs,
+    },
 };
 
 bitflags::bitflags! {
@@ -91,13 +96,12 @@ impl ResTop {
     }
 
     pub fn handle_key(&mut self, key: &KeyEvent) {
-        match key.code {
-            KeyCode::Up => self.layout.focus_up(&mut self.resources),
-            KeyCode::Down => self.layout.focus_down(&mut self.resources),
-            KeyCode::Left => self.layout.focus_left(),
-            KeyCode::Right => self.layout.focus_right(),
-            _ => {}
-        }
+        self.layout.handle_event(
+            &crate::view::NavigatorEvent::KeyEvent(*key),
+            NavigatorArgs {
+                resources: &mut self.resources,
+            },
+        )
     }
 
     pub fn run(&mut self, term: &mut Terminal<CrosstermBackend<Stdout>>) -> AResult<()> {
@@ -109,12 +113,12 @@ impl ResTop {
         {
             let tx = self.res_tx.clone();
             thread::Builder::new()
-                .name("term-event".to_string())
+                .name("termevent".to_string())
                 .spawn(move || loop {
                     if let Ok(e) = read() {
                         match e {
                             Event::Key(key) => {
-                                if let KeyCode::Char('q') = key.code {
+                                if is_ctrl_c(&key) {
                                     let _ = tx.send(ResourceEvent::Quit);
                                 } else {
                                     let _ = tx.send(ResourceEvent::KeyEvent(key));

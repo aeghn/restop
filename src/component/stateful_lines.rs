@@ -111,13 +111,7 @@ impl<'a> StatefulColumn<'a> {
     }
 
     pub fn render(&mut self, frame: &mut Frame, area: Rect) {
-        frame.render_widget(
-            &self.header,
-            Rect {
-                height: 1,
-                ..area
-            },
-        );
+        frame.render_widget(&self.header, Rect { height: 1, ..area });
 
         let text = Text::from(self.lines.clone());
 

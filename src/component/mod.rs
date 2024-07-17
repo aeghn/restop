@@ -3,15 +3,13 @@ use ratatui::{
     text::{Line, Span},
 };
 
-
 use crate::ring::Ring;
 use chin_tools::utils::stringutils::split_by_len;
 use ratatui::style::Style;
 
 pub mod grouped_lines;
+pub mod input;
 pub mod stateful_lines;
-
-
 
 pub fn ls_kv(
     key: Option<&str>,
@@ -124,7 +122,7 @@ pub fn s_hotgraph<'r>(
     min_value: f64,
 ) -> Vec<Span<'static>> {
     let width = width;
-    // let bars = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
+
     let bars = [
         "⡀", "⣀", "⡄", "⣄", "⣠", "⣤", "⡆", "⣆", "⣰", "⣦", "⣴", "⣶", "⡇", "⣇", "⣸", "⣧", "⣼", "⣷",
         "⣾", "⣿",

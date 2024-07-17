@@ -1,3 +1,4 @@
+use crossterm::event::KeyCode;
 use ratatui::{
     layout::{Constraint, Layout, Rect},
     Frame,
@@ -5,7 +6,7 @@ use ratatui::{
 
 use crate::{component::stateful_lines::StatefulGroupedLines, resource::ResourceType};
 
-use super::{Navigator, OverviewArg, PageArg};
+use super::{Navigator, NavigatorArgs, OverviewArg, PageArg};
 
 #[derive(Debug, Default)]
 pub struct SidebarAndPage {
@@ -114,6 +115,33 @@ impl Navigator for SidebarAndPage {
                 active: self.page_focused,
             };
             rt.render_page(frame, &mut args);
+        }
+    }
+
+    fn handle_event<'a>(&mut self, event: &super::NavigatorEvent, args: NavigatorArgs<'a>) {
+        if self.page_focused {
+            if let Some(rt) = self
+                .sidebar_state
+                .focused_index()
+                .or_else(|| Some(0))
+                .and_then(|id: usize| args.resources.get_mut(id))
+            {
+                let handled = rt.handle_navi_event(event);
+                if handled {
+                    return;
+                }
+            }
+        }
+        match event {
+            super::NavigatorEvent::KeyEvent(key) => {
+                match key.code {
+                    KeyCode::Up => self.focus_up(args.resources),
+                    KeyCode::Down => self.focus_down(args.resources),
+                    KeyCode::Left => self.focus_left(),
+                    KeyCode::Right => self.focus_right(),
+                    _ => {}
+                };
+            }
         }
     }
 }

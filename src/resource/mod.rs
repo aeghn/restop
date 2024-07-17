@@ -15,7 +15,6 @@ use std::{
 use battery::ResBattery;
 use chin_tools::wrapper::anyhow::AResult;
 use cpu::ResCPU;
-use crossterm::event::Event;
 use drive::{ResDrive, ResDriveRsp};
 use flume::Sender;
 use gpu::ResGPU;
@@ -40,7 +39,7 @@ use crate::{
         memory::MemoryData,
         network::{NetworkData, NetworkInterface},
     },
-    view::{OverviewArg, PageArg},
+    view::{NavigatorEvent, OverviewArg, PageArg},
 };
 
 pub trait Resource {
@@ -67,7 +66,9 @@ pub trait Resource {
 
     fn cached_page_state<'b>(&'b mut self) -> StatefulLinesType<'static, 'b>;
 
-    fn handle_page_event(&mut self, _event: &Event) {}
+    fn handle_navi_event(&mut self, _event: &NavigatorEvent) -> bool {
+        false
+    }
 
     fn render_page(&mut self, frame: &mut Frame, args: &mut PageArg) {
         let rect = args.rect;
@@ -192,15 +193,15 @@ impl ResourceType {
         }
     }
 
-    pub fn handle_page_event(&mut self, event: &Event) {
+    pub fn handle_navi_event(&mut self, event: &NavigatorEvent) -> bool {
         match self {
-            ResourceType::CPU(cpu) => cpu.handle_page_event(event),
-            ResourceType::Memory(mem) => mem.handle_page_event(event),
-            ResourceType::GPU(gpu) => gpu.handle_page_event(event),
-            ResourceType::Drive(drive) => drive.handle_page_event(event),
-            ResourceType::Network(network) => network.handle_page_event(event),
-            ResourceType::Battery(b) => b.handle_page_event(event),
-            ResourceType::Process(p) => p.handle_page_event(event),
+            ResourceType::CPU(cpu) => cpu.handle_navi_event(event),
+            ResourceType::Memory(mem) => mem.handle_navi_event(event),
+            ResourceType::GPU(gpu) => gpu.handle_navi_event(event),
+            ResourceType::Drive(drive) => drive.handle_navi_event(event),
+            ResourceType::Network(network) => network.handle_navi_event(event),
+            ResourceType::Battery(b) => b.handle_navi_event(event),
+            ResourceType::Process(p) => p.handle_navi_event(event),
         }
     }
 

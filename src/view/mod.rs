@@ -1,6 +1,7 @@
 pub mod sidebar_and_page;
 pub mod theme;
 
+use crossterm::event::KeyEvent;
 use ratatui::{layout::Rect, Frame};
 use sidebar_and_page::SidebarAndPage;
 
@@ -15,6 +16,8 @@ pub trait Navigator {
         resources: &mut Vec<ResourceType>,
         focused: Option<usize>,
     );
+
+    fn handle_event<'a>(&mut self, event: &NavigatorEvent, args: NavigatorArgs<'a>);
 
     fn focus_left(&mut self) {}
     fn focus_right(&mut self) {}
@@ -68,6 +71,12 @@ impl Navigator for LayoutType {
             LayoutType::SidebarAndPage(a) => a.render(frame, resources, focused),
         }
     }
+
+    fn handle_event<'a>(&mut self, event: &NavigatorEvent, args: NavigatorArgs<'a>) {
+        match self {
+            LayoutType::SidebarAndPage(sp) => sp.handle_event(event, args),
+        }
+    }
 }
 
 pub struct OverviewArg {
@@ -79,4 +88,12 @@ pub struct OverviewArg {
 pub struct PageArg {
     pub rect: Rect,
     pub active: bool,
+}
+
+pub enum NavigatorEvent {
+    KeyEvent(KeyEvent),
+}
+
+pub struct NavigatorArgs<'a> {
+    pub resources: &'a mut Vec<ResourceType>,
 }
