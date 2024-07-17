@@ -21,6 +21,13 @@ impl PciSlot {
             function,
         }
     }
+
+    pub fn to_string(&self) -> String {
+        format!(
+            "{}-{}-{}-{}",
+            self.domain, self.bus, self.number, self.function
+        )
+    }
 }
 
 #[derive(Debug)]
