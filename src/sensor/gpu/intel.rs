@@ -3,7 +3,7 @@ use process_data::pci_slot::PciSlot;
 
 use std::path::PathBuf;
 
-use crate::utils::pci::Device;
+use crate::sensor::pci::Device;
 
 use super::GpuImpl;
 
@@ -13,7 +13,7 @@ pub struct IntelGpu {
     pub device: Option<&'static Device>,
     pub pci_slot: PciSlot,
     pub driver: String,
-    sysfs_path: PathBuf,
+    pub sysfs_path: PathBuf,
     first_hwmon_path: Option<PathBuf>,
 }
 

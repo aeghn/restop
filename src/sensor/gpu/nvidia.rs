@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use log::{debug, warn};
 use nvml_wrapper::{
     enum_wrappers::device::{Clock, TemperatureSensor},
     error::NvmlError,
@@ -14,15 +13,15 @@ static NVML: Lazy<Result<Nvml, NvmlError>> = Lazy::new(|| {
     let nvml = Nvml::init();
 
     if let Err(error) = nvml.as_ref() {
-        warn!("Connection to NVML failed, reason: {error}");
+        tracing::warn!("Connection to NVML failed, reason: {error}");
     } else {
-        debug!("Successfully connected to NVML");
+        tracing::debug!("Successfully connected to NVML");
     }
 
     nvml
 });
 
-use crate::utils::pci::Device;
+use crate::sensor::pci::Device;
 
 use super::GpuImpl;
 

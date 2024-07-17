@@ -1,54 +1,13 @@
 use anyhow::{bail, Context, Result};
-use config::LIBEXECDIR;
-use log::debug;
-use once_cell::sync::Lazy;
+use chin_tools::wrapper::anyhow::AResult;
 use process_data::{pci_slot::PciSlot, Containerization, GpuUsageStats, ProcessData};
-use std::{
-    collections::BTreeMap,
-    io::{Read, Write},
-    process::{ChildStdin, ChildStdout, Command, Stdio},
-    sync::Mutex,
-};
+use std::{collections::BTreeMap, fmt::Display, process::Command};
 use strum_macros::Display;
+use tracing::debug;
 
-use gtk::gio::{Icon, ThemedIcon};
+use crate::tarits::NaNDefault;
 
-use crate::config;
-
-use super::{NaNDefault, FLATPAK_APP_PATH, FLATPAK_SPAWN, IS_FLATPAK, NUM_CPUS, TICK_RATE};
-
-static OTHER_PROCESS: Lazy<Mutex<(ChildStdin, ChildStdout)>> = Lazy::new(|| {
-    let proxy_path = if *IS_FLATPAK {
-        format!(
-            "{}/libexec/resources/resources-processes",
-            FLATPAK_APP_PATH.as_str()
-        )
-    } else {
-        format!("{LIBEXECDIR}/resources-processes")
-    };
-
-    let child = if *IS_FLATPAK {
-        Command::new(FLATPAK_SPAWN)
-            .args(["--host", proxy_path.as_str()])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap()
-    } else {
-        Command::new(proxy_path)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .unwrap()
-    };
-
-    let stdin = child.stdin.unwrap();
-    let stdout = child.stdout.unwrap();
-
-    Mutex::new((stdin, stdout))
-});
+use super::{NUM_CPUS, TICK_RATE};
 
 /// Represents a process that can be found within procfs.
 #[derive(Debug, Clone, PartialEq)]
@@ -56,7 +15,6 @@ pub struct Process {
     pub data: ProcessData,
     pub executable_path: String,
     pub executable_name: String,
-    pub icon: Icon,
     pub cpu_time_last: u64,
     pub timestamp_last: u64,
     pub read_bytes_last: Option<u64>,
@@ -78,7 +36,6 @@ pub struct ProcessItem {
     pub pid: i32,
     pub user: String,
     pub display_name: String,
-    pub icon: Icon,
     pub memory_usage: usize,
     pub cpu_time_ratio: f32,
     pub user_cpu_time: f64,
@@ -98,34 +55,6 @@ pub struct ProcessItem {
 }
 
 impl Process {
-    /// Returns a `Vec` containing all currently running processes.
-    ///
-    /// # Errors
-    ///
-    /// Will return `Err` if there are problems traversing and
-    /// parsing procfs
-    pub fn all_data() -> Result<Vec<ProcessData>> {
-        let output = {
-            let mut process = OTHER_PROCESS.lock().unwrap();
-            let _ = process.0.write_all(&[b'\n']);
-            let _ = process.0.flush();
-
-            let mut len_bytes = [0_u8; (usize::BITS / 8) as usize];
-
-            process.1.read_exact(&mut len_bytes)?;
-
-            let len = usize::from_le_bytes(len_bytes);
-
-            let mut output_bytes = vec![0; len];
-            process.1.read_exact(&mut output_bytes)?;
-
-            output_bytes
-        };
-
-        rmp_serde::from_slice::<Vec<ProcessData>>(&output)
-            .context("error decoding resources-processes' output")
-    }
-
     pub fn from_process_data(process_data: ProcessData) -> Self {
         let executable_path = process_data
             .commandline
@@ -157,7 +86,6 @@ impl Process {
             executable_path,
             executable_name,
             data: process_data,
-            icon: ThemedIcon::new("generic-process").into(),
             cpu_time_last: 0,
             timestamp_last: 0,
             read_bytes_last,
@@ -166,97 +94,23 @@ impl Process {
         }
     }
 
-    pub fn execute_process_action(&self, action: ProcessAction) -> Result<()> {
-        let action_str = match action {
-            ProcessAction::TERM => "TERM",
-            ProcessAction::STOP => "STOP",
-            ProcessAction::KILL => "KILL",
-            ProcessAction::CONT => "CONT",
-        };
-
-        // TODO: tidy this mess up
-
-        let kill_path = if *IS_FLATPAK {
-            format!(
-                "{}/libexec/resources/resources-kill",
-                FLATPAK_APP_PATH.as_str()
-            )
-        } else {
-            format!("{LIBEXECDIR}/resources-kill")
-        };
-
-        let status_code = if *IS_FLATPAK {
-            Command::new(FLATPAK_SPAWN)
-                .args([
-                    "--host",
-                    kill_path.as_str(),
-                    action_str,
-                    self.data.pid.to_string().as_str(),
-                ])
-                .output()?
-                .status
-                .code()
-                .context("no status code?")?
-        } else {
-            Command::new(kill_path.as_str())
-                .args([action_str, self.data.pid.to_string().as_str()])
-                .output()?
-                .status
-                .code()
-                .context("no status code?")?
-        };
-
-        if status_code == 0 || status_code == 3 {
-            // 0 := successful; 3 := process not found which we don't care
-            // about because that might happen because we killed the
-            // process' parent first, killing the child before we explicitly
-            // did
-            debug!("Successfully {action}ed {}", self.data.pid);
-            Ok(())
-        } else if status_code == 1 {
-            // 1 := no permissions
-            debug!(
-                "No permissions to {action} {}, attempting pkexec",
-                self.data.pid
-            );
-            self.pkexec_execute_process_action(action_str, &kill_path)
-        } else {
-            bail!(
-                "couldn't {action} {} due to unknown reasons, status code: {}",
-                self.data.pid,
-                status_code
-            )
-        }
+    pub fn execute_process_action(&self, _action: ProcessAction) -> Result<()> {
+        Ok(())
     }
 
+    #[allow(dead_code)]
     fn pkexec_execute_process_action(&self, action: &str, kill_path: &str) -> Result<()> {
-        let status_code = if *IS_FLATPAK {
-            Command::new(FLATPAK_SPAWN)
-                .args([
-                    "--host",
-                    "pkexec",
-                    "--disable-internal-agent",
-                    kill_path,
-                    action,
-                    self.data.pid.to_string().as_str(),
-                ])
-                .output()?
-                .status
-                .code()
-                .context("no status code?")?
-        } else {
-            Command::new("pkexec")
-                .args([
-                    "--disable-internal-agent",
-                    kill_path,
-                    action,
-                    self.data.pid.to_string().as_str(),
-                ])
-                .output()?
-                .status
-                .code()
-                .context("no status code?")?
-        };
+        let status_code = Command::new("pkexec")
+            .args([
+                "--disable-internal-agent",
+                kill_path,
+                action,
+                self.data.pid.to_string().as_str(),
+            ])
+            .output()?
+            .status
+            .code()
+            .context("no status code?")?;
 
         if status_code == 0 || status_code == 3 {
             // 0 := successful; 3 := process not found which we don't care
@@ -424,4 +278,53 @@ impl Process {
             Some(cmdline.replace('\0', " "))
         }
     }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct LoadAvg {
+    pub last1: f32,
+    pub last5: f32,
+    pub last15: f32,
+    pub processes: String,
+}
+
+impl Display for LoadAvg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:.1} {:.1} {:.1}",
+            &self.last1, &self.last5, &self.last15
+        )
+    }
+}
+
+/// `proc/loadavg`  
+/// The first three fields in this file are load average figures giving the number of jobs in the run queue (state R) or waiting for disk I/O (state D) averaged over 1, 5, and 15 minutes. They are the same as the load average numbers given by uptime(1) and other programs. The fourth field consists of two numbers separated by a slash (/). The first of these is the number of currently runnable kernel scheduling entities (processes, threads). The value after the slash is the number of kernel scheduling entities that currently exist on the system. The fifth field is the PID of the process that was most recently created on the system.
+pub fn read_proc_loadavg() -> AResult<LoadAvg> {
+    let s = std::fs::read_to_string("/proc/loadavg")?;
+    let mut iter = s.split(" ");
+    Ok(LoadAvg {
+        last1: iter.next().context("first")?.parse::<f32>()?,
+        last5: iter.next().context("second")?.parse::<f32>()?,
+        last15: iter.next().context("thirs")?.parse::<f32>()?,
+        processes: iter.next().context("Unable to read threads")?.to_string(),
+    })
+}
+
+pub fn read_proc_uptime() -> AResult<u64> {
+    std::fs::read_to_string("/proc/uptime")
+        .context("unable to read /proc/uptime")
+        .and_then(|procfs| {
+            procfs
+                .split(' ')
+                .next()
+                .map(str::to_string)
+                .context("unable to split /proc/uptime")
+        })
+        .and_then(|uptime_str| {
+            uptime_str
+                .parse::<f64>()
+                .context("unable to parse /proc/uptime")
+        })
+        .map(|uptime_secs: f64| uptime_secs as u64)
 }

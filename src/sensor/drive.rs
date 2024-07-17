@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
-use gtk::gio::{Icon, ThemedIcon};
+use chin_tools::wrapper::anyhow::AResult;
+use nix::sys::statvfs::statvfs;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::{
@@ -8,9 +9,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::i18n::{i18n, i18n_f};
+use crate::tarits::PathString;
 
-use super::units::convert_storage;
+use super::{units::convert_storage, Sensor};
 
 const SYS_STATS: &str = r" *(?P<read_ios>[0-9]*) *(?P<read_merges>[0-9]*) *(?P<read_sectors>[0-9]*) *(?P<read_ticks>[0-9]*) *(?P<write_ios>[0-9]*) *(?P<write_merges>[0-9]*) *(?P<write_sectors>[0-9]*) *(?P<write_ticks>[0-9]*) *(?P<in_flight>[0-9]*) *(?P<io_ticks>[0-9]*) *(?P<time_in_queue>[0-9]*) *(?P<discard_ios>[0-9]*) *(?P<discard_merges>[0-9]*) *(?P<discard_sectors>[0-9]*) *(?P<discard_ticks>[0-9]*) *(?P<flush_ios>[0-9]*) *(?P<flush_ticks>[0-9]*)";
 
@@ -79,20 +80,20 @@ impl Display for DriveType {
             f,
             "{}",
             match self {
-                DriveType::CdDvdBluray => i18n("CD/DVD/Blu-ray Drive"),
-                DriveType::Emmc => i18n("eMMC Storage"),
-                DriveType::Flash => i18n("Flash Storage"),
-                DriveType::Floppy => i18n("Floppy Drive"),
-                DriveType::Hdd => i18n("Hard Disk Drive"),
-                DriveType::LoopDevice => i18n("Loop Device"),
-                DriveType::MappedDevice => i18n("Mapped Device"),
-                DriveType::Nvme => i18n("NVMe Drive"),
-                DriveType::Unknown => i18n("N/A"),
-                DriveType::Raid => i18n("Software Raid"),
-                DriveType::RamDisk => i18n("RAM Disk"),
-                DriveType::Ssd => i18n("Solid State Drive"),
-                DriveType::ZfsVolume => i18n("ZFS Volume"),
-                DriveType::Zram => i18n("Compressed RAM Disk (zram)"),
+                DriveType::CdDvdBluray => "CD/DVD/Blu-ray Drive",
+                DriveType::Emmc => "eMMC Storage",
+                DriveType::Flash => "Flash Storage",
+                DriveType::Floppy => "Floppy Drive",
+                DriveType::Hdd => "Hard Disk Drive",
+                DriveType::LoopDevice => "Loop Device",
+                DriveType::MappedDevice => "Mapped Device",
+                DriveType::Nvme => "NVMe Drive",
+                DriveType::Unknown => "N/A",
+                DriveType::Raid => "Software Raid",
+                DriveType::RamDisk => "RAM Disk",
+                DriveType::Ssd => "Solid State Drive",
+                DriveType::ZfsVolume => "ZFS Volume",
+                DriveType::Zram => "Compressed RAM Disk (zram)",
             }
         )
     }
@@ -150,15 +151,15 @@ impl Drive {
     pub fn display_name(&self) -> String {
         let capacity_formatted = convert_storage(self.capacity().unwrap_or_default() as f64, true);
         match self.drive_type {
-            DriveType::CdDvdBluray => i18n("CD/DVD/Blu-ray Drive"),
-            DriveType::Floppy => i18n("Floppy Drive"),
-            DriveType::LoopDevice => i18n_f("{} Loop Device", &[&capacity_formatted]),
-            DriveType::MappedDevice => i18n_f("{} Mapped Device", &[&capacity_formatted]),
-            DriveType::Raid => i18n_f("{} RAID", &[&capacity_formatted]),
-            DriveType::RamDisk => i18n_f("{} RAM Disk", &[&capacity_formatted]),
-            DriveType::Zram => i18n_f("{} zram Device", &[&capacity_formatted]),
-            DriveType::ZfsVolume => i18n_f("{} ZFS Volume", &[&capacity_formatted]),
-            _ => i18n_f("{} Drive", &[&capacity_formatted]),
+            DriveType::CdDvdBluray => "CD/DVD/Blu-ray Drive".to_owned(),
+            DriveType::Floppy => "Floppy Drive".to_owned(),
+            DriveType::LoopDevice => format!("{} Loop Device", &capacity_formatted),
+            DriveType::MappedDevice => format!("{} Mapped Device", &capacity_formatted),
+            DriveType::Raid => format!("{} RAID", &capacity_formatted),
+            DriveType::RamDisk => format!("{} RAM Disk", &capacity_formatted),
+            DriveType::Zram => format!("{} zram Device", &capacity_formatted),
+            DriveType::ZfsVolume => format!("{} ZFS Volume", &capacity_formatted),
+            _ => format!("{} Drive", &capacity_formatted),
         }
     }
 
@@ -294,21 +295,21 @@ impl Drive {
     }
 
     /// Returns the appropriate Icon for the type of drive
-    pub fn icon(&self) -> Icon {
+    pub fn icon(&self) -> String {
         match self.drive_type {
-            DriveType::CdDvdBluray => ThemedIcon::new("cd-dvd-bluray-symbolic").into(),
-            DriveType::Emmc => ThemedIcon::new("emmc-symbolic").into(),
-            DriveType::Flash => ThemedIcon::new("flash-storage-symbolic").into(),
-            DriveType::Floppy => ThemedIcon::new("floppy-symbolic").into(),
-            DriveType::Hdd => ThemedIcon::new("hdd-symbolic").into(),
-            DriveType::LoopDevice => ThemedIcon::new("loop-device-symbolic").into(),
-            DriveType::MappedDevice => ThemedIcon::new("mapped-device-symbolic").into(),
-            DriveType::Nvme => ThemedIcon::new("nvme-symbolic").into(),
-            DriveType::Raid => ThemedIcon::new("raid-symbolic").into(),
-            DriveType::RamDisk => ThemedIcon::new("ram-disk-symbolic").into(),
-            DriveType::Ssd => ThemedIcon::new("ssd-symbolic").into(),
-            DriveType::ZfsVolume => ThemedIcon::new("zfs-symbolic").into(),
-            DriveType::Zram => ThemedIcon::new("zram-symbolic").into(),
+            DriveType::CdDvdBluray => String::from("cd-dvd-bluray-symbolic"),
+            DriveType::Emmc => String::from("emmc-symbolic"),
+            DriveType::Flash => String::from("flash-storage-symbolic"),
+            DriveType::Floppy => String::from("floppy-symbolic"),
+            DriveType::Hdd => String::from("hdd-symbolic"),
+            DriveType::LoopDevice => String::from("loop-device-symbolic"),
+            DriveType::MappedDevice => String::from("mapped-device-symbolic"),
+            DriveType::Nvme => String::from("nvme-symbolic"),
+            DriveType::Raid => String::from("raid-symbolic"),
+            DriveType::RamDisk => String::from("ram-disk-symbolic"),
+            DriveType::Ssd => String::from("ssd-symbolic"),
+            DriveType::ZfsVolume => String::from("zfs-symbolic"),
+            DriveType::Zram => String::from("zram-symbolic"),
             DriveType::Unknown => Self::default_icon(),
         }
     }
@@ -325,7 +326,69 @@ impl Drive {
         }
     }
 
-    pub fn default_icon() -> Icon {
-        ThemedIcon::new("unknown-drive-type-symbolic").into()
+    pub fn default_icon() -> String {
+        String::from("unknown-drive-type-symbolic")
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Partition {
+    pub total_bytes: u64,
+    pub free_bytes: u64,
+    pub mount_point: String,
+    pub fs_type: String,
+    pub device: String,
+}
+
+impl Partition {
+    pub fn fetch() -> AResult<Vec<Partition>> {
+        let lines = std::fs::read_to_string("/proc/mounts")?;
+
+        let mut result = vec![];
+
+        for line in lines.lines() {
+            let fields: Vec<&str> = line.split_whitespace().collect();
+            if fields.len() >= 3 {
+                let device = fields[0];
+                let mount_point = fields[1];
+                let point = fields[2];
+
+                if let Ok(stats) = statvfs(mount_point) {
+                    let total_space_bytes = stats.blocks() * stats.fragment_size();
+                    let available_space_bytes = stats.blocks_available() * stats.block_size();
+
+                    result.push(Partition {
+                        total_bytes: total_space_bytes,
+                        free_bytes: available_space_bytes,
+                        mount_point: mount_point.to_owned(),
+                        fs_type: point.to_owned(),
+                        device: device.to_owned(),
+                    });
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    pub fn contains(&self, key: &str) -> bool {
+        self.device.contains(key)
+    }
+
+    pub fn used_bytes(&self) -> u64 {
+        self.total_bytes - self.free_bytes
+    }
+}
+
+impl Sensor for Drive {
+    fn get_type_name(&self) -> &'static str {
+        "Drive"
+    }
+
+    fn get_id(&self) -> String {
+        self.sysfs_path.to_filepath()
+    }
+
+    fn get_name(&self) -> String {
+        self.sysfs_path.to_filename()
     }
 }

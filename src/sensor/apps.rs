@@ -1,22 +1,22 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use anyhow::{bail, Context, Result};
-use gtk::{
-    gio::{File, FileIcon, Icon, ThemedIcon},
-    glib::GString,
-};
+use chrono::TimeDelta;
 use hashbrown::{HashMap, HashSet};
-use log::debug;
 use once_cell::sync::Lazy;
 use process_data::{pci_slot::PciSlot, Containerization, ProcessData};
 use regex::Regex;
+use tracing::debug;
 
-use crate::i18n::i18n;
+use crate::tarits::{NaNDefault, None2NanString};
 
 use super::{
-    boot_time,
     process::{Process, ProcessAction, ProcessItem},
-    NaNDefault, TICK_RATE,
+    time::boot_time,
+    TICK_RATE,
 };
 
 // This contains executable names that are blacklisted from being recognized as applications
@@ -116,13 +116,12 @@ pub struct AppsContext {
 pub struct AppItem {
     pub id: Option<String>,
     pub display_name: String,
-    pub icon: Icon,
     pub description: Option<String>,
     pub memory_usage: usize,
     pub cpu_time_ratio: f32,
     pub processes_amount: usize,
     pub containerization: Containerization,
-    pub running_since: GString,
+    pub running_since: String,
     pub read_speed: f64,
     pub read_total: u64,
     pub write_speed: f64,
@@ -142,7 +141,6 @@ pub struct App {
     pub executable_name: Option<String>,
     pub display_name: String,
     pub description: Option<String>,
-    pub icon: Icon,
     pub id: String,
     pub read_bytes_from_dead_processes: u64,
     pub write_bytes_from_dead_processes: u64,
@@ -179,8 +177,6 @@ impl App {
             .section(Some("Desktop Entry"))
             .context("no desktop entry section")?;
 
-        let is_snap = desktop_entry.get("X-SnapInstanceName").is_some();
-
         let id = desktop_entry
             .get("X-Flatpak") // is there a X-Flatpak section?
             .or_else(|| desktop_entry.get("X-SnapInstanceName")) // if not, maybe there is a X-SnapInstanceName
@@ -210,7 +206,7 @@ impl App {
                     .map(|capture| capture.as_str())
                     .or(Some(exec))
             })
-            .map(str::to_string);
+            .map(|e| e.to_string());
 
         let executable_name = commandline.clone().map(|cmdline| {
             RE_FLATPAK_FILTER // filter flatpak stuff (e. g. from "/usr/bin/flatpak run … --command=inkscape …" to "inkscape")
@@ -236,16 +232,6 @@ impl App {
                 )
             }
         }
-
-        let icon = if let Some(desktop_icon) = desktop_entry.get("Icon") {
-            if is_snap {
-                FileIcon::new(&File::for_path(desktop_icon)).into()
-            } else {
-                ThemedIcon::new(desktop_icon).into()
-            }
-        } else {
-            ThemedIcon::new("generic-process").into()
-        };
 
         let mut display_name_opt = None;
         let mut description_opt = None;
@@ -279,7 +265,6 @@ impl App {
             executable_name,
             display_name,
             description,
-            icon,
             id,
             read_bytes_from_dead_processes: 0,
             write_bytes_from_dead_processes: 0,
@@ -290,7 +275,6 @@ impl App {
     /// updates the `Process`' icon to the one of this
     /// `App`
     pub fn add_process(&mut self, process: &mut Process) {
-        process.icon = self.icon.clone();
         self.processes.push(process.data.pid);
     }
 
@@ -615,7 +599,6 @@ impl AppsContext {
                 pid: process.data.pid,
                 user: process.data.user.clone(),
                 display_name: full_comm.clone(),
-                icon: process.icon.clone(),
                 memory_usage: process.data.memory_usage,
                 cpu_time_ratio: process.cpu_time_ratio(),
                 user_cpu_time: ((process.data.user_cpu_time) as f64 / (*TICK_RATE) as f64),
@@ -679,18 +662,23 @@ impl AppsContext {
                 let running_since = boot_time()
                     .and_then(|boot_time| {
                         boot_time
-                            .add_seconds(app.starttime(self))
+                            .checked_add_signed(
+                                TimeDelta::from_std(
+                                    Duration::from_secs(app.starttime(self) as u64),
+                                )
+                                .unwrap(),
+                            )
                             .context("unable to add seconds to boot time")
                     })
-                    .and_then(|time| time.format("%c").context("unable to format running_since"))
-                    .unwrap_or_else(|_| GString::from(i18n("N/A")));
+                    .and_then(|time| Ok(time.to_string()))
+                    .ok()
+                    .or_nan_owned();
 
                 (
                     Some(app.id.clone()),
                     AppItem {
                         id: Some(app.id.clone()),
                         display_name: app.display_name.clone(),
-                        icon: app.icon.clone(),
                         description: app.description.clone(),
                         memory_usage: app.memory_usage(self),
                         cpu_time_ratio: app.cpu_time_ratio(self),
@@ -754,19 +742,15 @@ impl AppsContext {
             .sum();
 
         let system_running_since = boot_time()
-            .and_then(|boot_time| {
-                boot_time
-                    .format("%c")
-                    .context("unable to format running_time")
-            })
-            .unwrap_or_else(|_| GString::from(i18n("N/A")));
+            .and_then(|boot_time| Ok(boot_time.to_string()))
+            .ok()
+            .or_nan_owned();
 
         return_map.insert(
             None,
             AppItem {
                 id: None,
-                display_name: i18n("System Processes"),
-                icon: ThemedIcon::new("system-processes").into(),
+                display_name: String::from("System Processes"),
                 description: None,
                 memory_usage: system_memory_usage,
                 cpu_time_ratio: system_cpu_ratio,

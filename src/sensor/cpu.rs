@@ -1,6 +1,6 @@
 use anyhow::{anyhow, bail, Context, Result};
+use chin_tools::wrapper::anyhow::AResult;
 use glob::glob;
-use log::{debug, warn};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::{Path, PathBuf};
@@ -35,12 +35,12 @@ static CPU_TEMPERATURE_PATH: Lazy<Option<PathBuf>> = Lazy::new(|| {
         search_for_hwmons(KNOWN_HWMONS).or_else(|| search_for_thermal_zones(KNOWN_THERMAL_ZONES));
 
     if let Some((sensor, path)) = &cpu_temperature_path {
-        debug!(
+        tracing::debug!(
             "CPU temperature sensor located at {} ({sensor})",
             path.display()
         );
     } else {
-        warn!("No sensor for CPU temperature found!");
+        tracing::warn!("No sensor for CPU temperature found!");
     }
 
     cpu_temperature_path.map(|(_, path)| path)
@@ -78,36 +78,37 @@ fn search_for_thermal_zones(types: &[&'static str]) -> Option<(&'static str, Pat
     None
 }
 
+#[derive(Clone, Debug)]
 pub struct CpuData {
     pub new_total_usage: (u64, u64),
     pub new_thread_usages: Vec<(u64, u64)>,
-    pub temperature: Result<f32, anyhow::Error>,
+    pub temperature: Option<f32>,
     pub frequencies: Vec<Option<u64>>,
 }
 
 impl CpuData {
-    pub fn new(logical_cpus: usize) -> Self {
-        let new_total_usage = get_cpu_usage(None).unwrap_or((0, 0));
+    pub fn fetch(logical_cpus: usize) -> AResult<Self> {
+        let new_total_usage = get_cpu_usage(None)?;
 
-        let temperature = get_temperature();
+        let temperature = get_temperature().ok();
 
         let mut frequencies = Vec::with_capacity(logical_cpus);
         let mut new_thread_usages = Vec::with_capacity(logical_cpus);
 
         for i in 0..logical_cpus {
-            let smth = get_cpu_usage(Some(i)).unwrap_or((0, 0));
+            let smth = get_cpu_usage(Some(i))?;
             new_thread_usages.push(smth);
 
-            let freq = get_cpu_freq(i);
-            frequencies.push(freq.ok());
+            let freq = get_cpu_freq(i).ok();
+            frequencies.push(freq);
         }
 
-        Self {
+        Ok(Self {
             new_total_usage,
             new_thread_usages,
             temperature,
             frequencies,
-        }
+        })
     }
 }
 

@@ -3,7 +3,7 @@ use process_data::pci_slot::PciSlot;
 
 use std::path::PathBuf;
 
-use crate::utils::pci::Device;
+use crate::sensor::pci::Device;
 
 use super::GpuImpl;
 

@@ -1,12 +1,13 @@
 use anyhow::{bail, Result};
 use hashbrown::HashMap;
 use once_cell::sync::Lazy;
+
 use process_data::pci_slot::PciSlot;
 use regex::Regex;
 
 use std::path::PathBuf;
 
-use crate::utils::{
+use crate::sensor::{
     pci::{self, Device},
     IS_FLATPAK,
 };

@@ -4,7 +4,7 @@ mod nvidia;
 mod other;
 
 use anyhow::{bail, Context, Result};
-use log::debug;
+use chin_tools::wrapper::anyhow::AResult;
 use process_data::pci_slot::PciSlot;
 
 use std::{
@@ -15,7 +15,10 @@ use std::{
 
 use glob::glob;
 
-use crate::{i18n::i18n, utils::pci::Device};
+use crate::{
+    sensor::pci::{get_device, Device},
+    tarits::None2NanString,
+};
 
 use self::{amd::AmdGpu, intel::IntelGpu, nvidia::NvidiaGpu, other::OtherGpu};
 
@@ -25,55 +28,56 @@ pub const VID_AMD: u16 = 4098;
 pub const VID_INTEL: u16 = 32902;
 pub const VID_NVIDIA: u16 = 4318;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GpuData {
+    pub id: String,
     pub pci_slot: PciSlot,
+    pub usage_fraction: f64,
 
-    pub usage_fraction: Option<f64>,
+    pub encode_fraction: f64,
+    pub decode_fraction: f64,
 
-    pub encode_fraction: Option<f64>,
-    pub decode_fraction: Option<f64>,
+    pub total_vram: isize,
+    pub used_vram: isize,
 
-    pub total_vram: Option<isize>,
-    pub used_vram: Option<isize>,
+    pub clock_speed: f64,
+    pub vram_speed: f64,
 
-    pub clock_speed: Option<f64>,
-    pub vram_speed: Option<f64>,
+    pub temp: f64,
 
-    pub temp: Option<f64>,
-
-    pub power_usage: Option<f64>,
-    pub power_cap: Option<f64>,
-    pub power_cap_max: Option<f64>,
+    pub power_usage: f64,
+    pub power_cap: f64,
+    pub power_cap_max: f64,
 
     pub nvidia: bool,
 }
 
 impl GpuData {
-    pub fn new(gpu: &Gpu) -> Self {
+    pub fn new(gpu: &Gpu) -> AResult<Self> {
         let pci_slot = gpu.pci_slot();
 
-        let usage_fraction = gpu.usage().map(|usage| (usage as f64) / 100.0).ok();
+        let usage_fraction = gpu.usage().map(|usage| (usage as f64) / 100.0)?;
 
-        let encode_fraction = gpu.encode_usage().map(|usage| (usage as f64) / 100.0).ok();
+        let encode_fraction = gpu.encode_usage().map(|usage| (usage as f64) / 100.0)?;
 
-        let decode_fraction = gpu.decode_usage().map(|usage| (usage as f64) / 100.0).ok();
+        let decode_fraction = gpu.decode_usage().map(|usage| (usage as f64) / 100.0)?;
 
-        let total_vram = gpu.total_vram().ok();
-        let used_vram = gpu.used_vram().ok();
+        let total_vram = gpu.total_vram()?;
+        let used_vram = gpu.used_vram()?;
 
-        let clock_speed = gpu.core_frequency().ok();
-        let vram_speed = gpu.vram_frequency().ok();
+        let clock_speed = gpu.core_frequency()?;
+        let vram_speed = gpu.vram_frequency()?;
 
-        let temp = gpu.temperature().ok();
+        let temp = gpu.temperature()?;
 
-        let power_usage = gpu.power_usage().ok();
-        let power_cap = gpu.power_cap().ok();
-        let power_cap_max = gpu.power_cap_max().ok();
+        let power_usage = gpu.power_usage()?;
+        let power_cap = gpu.power_cap()?;
+        let power_cap_max = gpu.power_cap_max()?;
 
         let nvidia = matches!(gpu, Gpu::Nvidia(_));
 
-        Self {
+        Ok(Self {
+            id: pci_slot.to_string(),
             pci_slot,
             usage_fraction,
             encode_fraction,
@@ -87,7 +91,7 @@ impl GpuData {
             power_cap,
             power_cap_max,
             nvidia,
-        }
+        })
     }
 }
 
@@ -247,18 +251,12 @@ impl Gpu {
             hwmon_vec.push(hwmon);
         }
 
-        let device = Device::from_vid_pid(vid, pid);
+        let device = get_device(&vid, &pid);
 
-        let pci_slot = PciSlot::from_str(
-            &uevent_contents
-                .get("PCI_SLOT_NAME")
-                .map_or_else(|| i18n("N/A"), std::string::ToString::to_string),
-        )
-        .context("can't turn PCI string to struct")?;
+        let pci_slot = PciSlot::from_str(&uevent_contents.get("PCI_SLOT_NAME").or_nan_owned())
+            .context("can't turn PCI string to struct")?;
 
-        let driver = uevent_contents
-            .get("DRIVER")
-            .map_or_else(|| i18n("N/A"), std::string::ToString::to_string);
+        let driver = uevent_contents.get("DRIVER").or_nan_owned();
 
         // if the driver is simple-framebuffer, it's likely not a GPU
         if driver == "simple-framebuffer" {
@@ -313,7 +311,7 @@ impl Gpu {
             )
         };
 
-        debug!(
+        tracing::debug!(
             "Found GPU \"{}\" (PCI slot: {} · PCI ID: {vid:x}:{pid:x} · Category: {gpu_category})",
             gpu.name().unwrap_or("<unknown name>".into()),
             gpu.pci_slot(),
@@ -323,14 +321,15 @@ impl Gpu {
     }
 
     pub fn get_vendor(&self) -> Result<&'static Vendor> {
-        Ok(match self {
+        /* Ok(match self {
             Gpu::Amd(gpu) => gpu.device(),
             Gpu::Nvidia(gpu) => gpu.device(),
             Gpu::Intel(gpu) => gpu.device(),
             Gpu::Other(gpu) => gpu.device(),
         }
         .context("no device")?
-        .vendor())
+        .vendor()) */
+        anyhow::bail!("unable to find")
     }
 
     pub fn pci_slot(&self) -> PciSlot {
@@ -456,6 +455,15 @@ impl Gpu {
             Gpu::Nvidia(gpu) => gpu.power_cap_max(),
             Gpu::Intel(gpu) => gpu.power_cap_max(),
             Gpu::Other(gpu) => gpu.power_cap_max(),
+        }
+    }
+
+    pub fn sysfs_path(&self) -> PathBuf {
+        match self {
+            Gpu::Amd(g) => g.sysfs_path(),
+            Gpu::Nvidia(g) => g.sysfs_path(),
+            Gpu::Intel(g) => g.sysfs_path(),
+            Gpu::Other(g) => g.sysfs_path(),
         }
     }
 }

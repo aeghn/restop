@@ -1,11 +1,8 @@
 use std::process::Command;
 
 use anyhow::{bail, Context, Result};
-use log::debug;
 use once_cell::sync::Lazy;
 use regex::Regex;
-
-use super::{FLATPAK_APP_PATH, FLATPAK_SPAWN, IS_FLATPAK};
 
 const TEMPLATE_RE_PRESENT: &str = r"MEMORY_DEVICE_%_PRESENT=(\d)";
 
@@ -57,7 +54,7 @@ pub struct MemoryData {
 }
 
 impl MemoryData {
-    pub fn new() -> Result<Self> {
+    pub fn fetch(_req: ()) -> Result<Self> {
         let proc_mem =
             std::fs::read_to_string("/proc/meminfo").context("unable to read /proc/meminfo")?;
 
@@ -181,21 +178,9 @@ fn parse_dmidecode<S: AsRef<str>>(dmi: S) -> Vec<MemoryDevice> {
 }
 
 fn virtual_dmi() -> Vec<MemoryDevice> {
-    let command = if *IS_FLATPAK {
-        Command::new(FLATPAK_SPAWN)
-            .args([
-                "--host",
-                "udevadm",
-                "info",
-                "-p",
-                "/sys/devices/virtual/dmi/id",
-            ])
-            .output()
-    } else {
-        Command::new("udevadm")
-            .args(["info", "-p", "/sys/devices/virtual/dmi/id"])
-            .output()
-    };
+    let command = Command::new("udevadm")
+        .args(["info", "-p", "/sys/devices/virtual/dmi/id"])
+        .output();
 
     let virtual_dmi_output = command
         .context("unable to execute udevadm")
@@ -284,36 +269,24 @@ pub fn get_memory_devices() -> Result<Vec<MemoryDevice>> {
             .args(["-t", "17", "-q"])
             .output()?;
         if output.status.code().unwrap_or(1) == 1 {
-            debug!("Unable to get memory information without elevated privileges");
+            tracing::debug!("Unable to get memory information without elevated privileges");
             bail!("no permission")
         }
-        debug!("Memory information obtained using dmidecode (unprivileged)");
+        tracing::debug!("Memory information obtained using dmidecode (unprivileged)");
         Ok(parse_dmidecode(String::from_utf8(output.stdout)?))
     } else {
-        debug!("Memory information obtained using udevadm");
+        tracing::debug!("Memory information obtained using udevadm");
         Ok(virtual_dmi)
     }
 }
 
 pub fn pkexec_dmidecode() -> Result<Vec<MemoryDevice>> {
-    debug!("Using pkexec to get memory information (dmidecode)…");
-    let output = if *IS_FLATPAK {
-        Command::new(FLATPAK_SPAWN)
-            .args([
-                "--host",
-                "/usr/bin/pkexec",
-                "--disable-internal-agent",
-                &format!("{}/bin/dmidecode", FLATPAK_APP_PATH.as_str()),
-                "-t",
-                "17",
-                "-q",
-            ])
-            .output()?
-    } else {
-        Command::new("pkexec")
-            .args(["--disable-internal-agent", "dmidecode", "-t", "17", "-q"])
-            .output()?
-    };
-    debug!("Memory information obtained using dmidecode (privileged)");
+    tracing::debug!("Using pkexec to get memory information (dmidecode)…");
+
+    let output = Command::new("pkexec")
+        .args(["--disable-internal-agent", "dmidecode", "-t", "17", "-q"])
+        .output()?;
+
+    tracing::debug!("Memory information obtained using dmidecode (privileged)");
     Ok(parse_dmidecode(String::from_utf8(output.stdout)?.as_str()))
 }

@@ -6,10 +6,11 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 
-use crate::i18n::{i18n, i18n_f};
+use crate::tarits::{None2NaN, None2NanString};
 
-use super::units::convert_energy;
+use super::{units::convert_energy, Sensor};
 
+#[derive(Debug)]
 pub struct BatteryData {
     pub inner: Battery,
     pub charge: Result<f64>,
@@ -71,11 +72,11 @@ impl Display for State {
             f,
             "{}",
             match self {
-                State::Charging => i18n("Charging"),
-                State::Discharging => i18n("Discharging"),
-                State::Empty => i18n("Empty"),
-                State::Full => i18n("Full"),
-                State::Unknown => i18n("Unknown"),
+                State::Charging => "Charging",
+                State::Discharging => "Discharging",
+                State::Empty => "Empty",
+                State::Full => "Full",
+                State::Unknown => "Unknown",
             }
         )
     }
@@ -126,16 +127,15 @@ impl Display for Technology {
             f,
             "{}",
             match self {
-                Technology::NickelMetalHydride => i18n("Nickel-Metal Hydride"),
-                Technology::NickelCadmium => i18n("Nickel-Cadmium"),
-                Technology::NickelZinc => i18n("Nickel-Zinc"),
-                Technology::LeadAcid => i18n("Lead-Acid"),
-                Technology::LithiumIon => i18n("Lithium-Ion"),
-                Technology::LithiumIronPhosphate => i18n("Lithium Iron Phosphate"),
-                Technology::LithiumPolymer => i18n("Lithium Polymer"),
-                Technology::RechargeableAlkalineManganese =>
-                    i18n("Rechargeable Alkaline Managanese"),
-                Technology::Unknown => i18n("N/A"),
+                Technology::NickelMetalHydride => "Nickel-Metal Hydride",
+                Technology::NickelCadmium => "Nickel-Cadmium",
+                Technology::NickelZinc => "Nickel-Zinc",
+                Technology::LeadAcid => "Lead-Acid",
+                Technology::LithiumIon => "Lithium-Ion",
+                Technology::LithiumIronPhosphate => "Lithium Iron Phosphate",
+                Technology::LithiumPolymer => "Lithium Polymer",
+                Technology::RechargeableAlkalineManganese => "Rechargeable Alkaline Managanese",
+                Technology::Unknown => "N/A",
             }
         )
     }
@@ -143,6 +143,7 @@ impl Display for Technology {
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Battery {
+    pub supply_name: String,
     pub sysfs_path: PathBuf,
     pub manufacturer: Option<String>,
     pub model_name: Option<String>,
@@ -171,6 +172,11 @@ impl Battery {
 
     pub fn from_sysfs<P: AsRef<Path>>(sysfs_path: P) -> Battery {
         let sysfs_path = sysfs_path.as_ref().to_path_buf();
+        let file_name = sysfs_path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .or_unk(|e| e.to_string());
 
         let manufacturer = std::fs::read_to_string(sysfs_path.join("manufacturer"))
             .map(|s| s.replace('\n', ""))
@@ -199,6 +205,7 @@ impl Battery {
             .ok();
 
         Battery {
+            supply_name: file_name,
             sysfs_path,
             manufacturer,
             model_name,
@@ -210,9 +217,9 @@ impl Battery {
     pub fn display_name(&self) -> String {
         if let Some(design_capacity) = self.design_capacity {
             let converted_energy = convert_energy(design_capacity, true);
-            i18n_f("{} Battery", &[&converted_energy])
+            format!("{} Battery", &converted_energy)
         } else {
-            i18n("Battery")
+            String::from("Battery")
         }
     }
 
@@ -290,5 +297,21 @@ impl Battery {
             .trim()
             .parse()
             .context("unable to parse power_now sysfs file")
+    }
+}
+
+impl Sensor for Battery {
+    fn get_type_name(&self) -> &'static str {
+        "Battery"
+    }
+
+    fn get_id(&self) -> String {
+        self.sysfs_path.to_str().or_unk_owned()
+    }
+
+    fn get_name(&self) -> String {
+        self.sysfs_path
+            .file_name()
+            .or_unk(|e| e.to_str().or_nan_owned())
     }
 }

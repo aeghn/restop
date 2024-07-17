@@ -6,15 +6,14 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use gtk::gio::{Icon, ThemedIcon};
 
-use crate::i18n::i18n;
+use crate::tarits::PathString;
 
-use super::pci::{Device, Vendor};
+use super::{pci::get_device, Sensor};
 
 #[derive(Debug)]
 pub struct NetworkData {
-    pub inner: NetworkInterface,
+    pub hw_address: Option<String>,
     pub is_virtual: bool,
     pub received_bytes: Result<usize>,
     pub sent_bytes: Result<usize>,
@@ -22,15 +21,14 @@ pub struct NetworkData {
 }
 
 impl NetworkData {
-    pub fn new(path: &Path) -> Self {
-        let inner = NetworkInterface::from_sysfs(path);
+    pub fn new(inner: &NetworkInterface) -> Self {
         let is_virtual = inner.is_virtual();
         let received_bytes = inner.received_bytes();
         let sent_bytes = inner.sent_bytes();
         let display_name = inner.display_name();
 
         Self {
-            inner,
+            hw_address: inner.hw_address.clone(),
             is_virtual,
             received_bytes,
             sent_bytes,
@@ -55,6 +53,7 @@ pub enum InterfaceType {
     Wwan,
     #[default]
     Unknown,
+    AccessPoint,
 }
 
 impl InterfaceType {
@@ -85,8 +84,29 @@ impl InterfaceType {
             Self::Wlan
         } else if interface_name.starts_with("ww") {
             Self::Wwan
+        } else if interface_name.starts_with("ap") {
+            Self::AccessPoint
         } else {
             Self::Unknown
+        }
+    }
+
+    pub fn short_type(&self) -> &'static str {
+        match *self {
+            InterfaceType::Bluetooth => "Bluetooth",
+            InterfaceType::Bridge => "Network Bridge",
+            InterfaceType::Ethernet => "Ethernet",
+            InterfaceType::Docker => "Docker Bridge",
+            InterfaceType::InfiniBand => "InfiniBand Connection",
+            InterfaceType::Slip => "Serial Line IP Connection",
+            InterfaceType::VirtualEthernet => "Virtual Ethernet Device",
+            InterfaceType::VmBridge => "VM Network Bridge",
+            InterfaceType::Vpn => "VPN",
+            InterfaceType::Wireguard => "WireGuard",
+            InterfaceType::Wlan => "Wi-Fi",
+            InterfaceType::Wwan => "WWAN",
+            InterfaceType::Unknown => "Network",
+            InterfaceType::AccessPoint => "AP",
         }
     }
 }
@@ -113,19 +133,20 @@ impl Display for InterfaceType {
             f,
             "{}",
             match self {
-                InterfaceType::Bluetooth => i18n("Bluetooth Tether"),
-                InterfaceType::Bridge => i18n("Network Bridge"),
-                InterfaceType::Ethernet => i18n("Ethernet Connection"),
-                InterfaceType::Docker => i18n("Docker Bridge"),
-                InterfaceType::InfiniBand => i18n("InfiniBand Connection"),
-                InterfaceType::Slip => i18n("Serial Line IP Connection"),
-                InterfaceType::VirtualEthernet => i18n("Virtual Ethernet Device"),
-                InterfaceType::VmBridge => i18n("VM Network Bridge"),
-                InterfaceType::Vpn => i18n("VPN Tunnel"),
-                InterfaceType::Wireguard => i18n("VPN Tunnel (WireGuard)"),
-                InterfaceType::Wlan => i18n("Wi-Fi Connection"),
-                InterfaceType::Wwan => i18n("WWAN Connection"),
-                InterfaceType::Unknown => i18n("Network Interface"),
+                InterfaceType::Bluetooth => "Bluetooth Tether",
+                InterfaceType::Bridge => "Network Bridge",
+                InterfaceType::Ethernet => "Ethernet Connection",
+                InterfaceType::Docker => "Docker Bridge",
+                InterfaceType::InfiniBand => "InfiniBand Connection",
+                InterfaceType::Slip => "Serial Line IP Connection",
+                InterfaceType::VirtualEthernet => "Virtual Ethernet Device",
+                InterfaceType::VmBridge => "VM Network Bridge",
+                InterfaceType::Vpn => "VPN Tunnel",
+                InterfaceType::Wireguard => "VPN Tunnel (WireGuard)",
+                InterfaceType::Wlan => "Wi-Fi Connection",
+                InterfaceType::Wwan => "WWAN Connection",
+                InterfaceType::Unknown => "Network Interface",
+                InterfaceType::AccessPoint => "Access Point",
             }
         )
     }
@@ -196,14 +217,16 @@ impl NetworkInterface {
             }
         }
 
-        let vendor = vid_pid
-            .0
-            .and_then(|vid| Vendor::from_vid(vid).map(|x| x.name().to_string()));
+        let vendor = if let (Some(vid), Some(pid)) = vid_pid {
+            get_device(&vid, &pid).map(|x| x.vendor_name.clone())
+        } else {
+            None
+        };
 
         let pid_name = vid_pid
             .0
             .zip(vid_pid.1)
-            .and_then(|(vid, pid)| Device::from_vid_pid(vid, pid).map(|x| x.name().to_string()));
+            .and_then(|(vid, pid)| get_device(&vid, &pid).map(|x| x.name().to_string()));
 
         let sysfs_path_clone = sysfs_path.to_owned();
         let speed = std::fs::read_to_string(sysfs_path_clone.join("speed"))
@@ -275,22 +298,22 @@ impl NetworkInterface {
     }
 
     /// Returns the appropriate Icon for the type of drive
-    pub fn icon(&self) -> Icon {
+    /*     pub fn icon(&self) -> String {
         match self.interface_type {
-            InterfaceType::Bluetooth => ThemedIcon::new("bluetooth-symbolic").into(),
-            InterfaceType::Bridge => ThemedIcon::new("bridge-symbolic").into(),
-            InterfaceType::Docker => ThemedIcon::new("docker-bridge-symbolic").into(),
-            InterfaceType::Ethernet => ThemedIcon::new("ethernet-symbolic").into(),
-            InterfaceType::InfiniBand => ThemedIcon::new("infiniband-symbolic").into(),
-            InterfaceType::Slip => ThemedIcon::new("slip-symbolic").into(),
-            InterfaceType::VirtualEthernet => ThemedIcon::new("virtual-ethernet").into(),
-            InterfaceType::VmBridge => ThemedIcon::new("vm-bridge-symbolic").into(),
-            InterfaceType::Vpn | InterfaceType::Wireguard => ThemedIcon::new("vpn-symbolic").into(),
-            InterfaceType::Wlan => ThemedIcon::new("wlan-symbolic").into(),
-            InterfaceType::Wwan => ThemedIcon::new("wwan-symbolic").into(),
+            InterfaceType::Bluetooth => String::from("bluetooth-symbolic").into(),
+            InterfaceType::Bridge => String::from("bridge-symbolic").into(),
+            InterfaceType::Docker => String::from("docker-bridge-symbolic").into(),
+            InterfaceType::Ethernet => String::from("ethernet-symbolic").into(),
+            InterfaceType::InfiniBand => String::from("infiniband-symbolic").into(),
+            InterfaceType::Slip => String::from("slip-symbolic").into(),
+            InterfaceType::VirtualEthernet => String::from("virtual-ethernet").into(),
+            InterfaceType::VmBridge => String::from("vm-bridge-symbolic").into(),
+            InterfaceType::Vpn | InterfaceType::Wireguard => String::from("vpn-symbolic").into(),
+            InterfaceType::Wlan => String::from("wlan-symbolic").into(),
+            InterfaceType::Wwan => String::from("wwan-symbolic").into(),
             InterfaceType::Unknown => Self::default_icon(),
         }
-    }
+    } */
 
     pub fn is_virtual(&self) -> bool {
         matches!(
@@ -304,7 +327,21 @@ impl NetworkInterface {
         )
     }
 
-    pub fn default_icon() -> Icon {
-        ThemedIcon::new("unknown-network-type-symbolic").into()
+    pub fn default_icon() -> String {
+        String::from("unknown-network-type-symbolic").into()
+    }
+}
+
+impl Sensor for NetworkInterface {
+    fn get_type_name(&self) -> &'static str {
+        "Network"
+    }
+
+    fn get_id(&self) -> String {
+        self.sysfs_path.to_filepath()
+    }
+
+    fn get_name(&self) -> String {
+        self.sysfs_path.to_filename()
     }
 }
