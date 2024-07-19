@@ -9,10 +9,12 @@ use crate::{
         stateful_lines::{StatefulGroupedLines, StatefulLinesType},
     },
     ring::Ring,
-    sensor::gpu::{Gpu, GpuData},
+    sensor::{
+        gpu::{Gpu, GpuData},
+        units::convert_power,
+    },
     tarits::{None2NaN, None2NaNDef, None2NanString},
-    view::theme::SharedTheme,
-    view::OverviewArg,
+    view::{theme::SharedTheme, OverviewArg},
 };
 
 use super::{Resource, SensorResultType, SensorRsp};
@@ -110,5 +112,53 @@ impl Resource for ResGPU {
 
     fn get_name(&self) -> String {
         "GPU".to_string()
+    }
+
+    fn _build_page(&mut self, args: &mut crate::view::PageArg) -> AResult<String> {
+        let width = args.rect.width;
+        let mut blocks = vec![];
+
+        let usage = GroupedLines::builder(width, &self.theme)
+            .kv_sep(
+                "Manufacturer",
+                self.info.get_vendor_name().ok().or_unk_def(),
+            )
+            .kv_sep("PCI Slot", self.info.pci_slot().to_string())
+            .kv_sep("Driver Used", self.info.driver())
+            .kv_sep(
+                "Max Power Cap",
+                self.info.power_cap_max().ok().or_nan(|e| convert_power(*e)),
+            )
+            .active(args.active)
+            .build("Usage")?;
+        blocks.push(usage);
+
+        self.viewer_state.update_blocks(blocks);
+
+        Ok("".to_string())
+    }
+
+    fn handle_navi_event(&mut self, _event: &crate::view::NavigatorEvent) -> bool {
+        false
+    }
+
+    fn render_page(&mut self, frame: &mut ratatui::Frame, args: &mut crate::view::PageArg) {
+        let rect = args.rect;
+        match self._build_page(args) {
+            Ok(_) => {}
+            Err(err) => {
+                tracing::error!("unable to render_page: {}", err);
+                return;
+            }
+        }
+
+        let lines = self.cached_page_state();
+
+        match lines {
+            StatefulLinesType::Groups(ls) => {
+                ls.render(frame, rect);
+            }
+            StatefulLinesType::Lines(vls) => vls.render(frame, rect),
+        }
     }
 }

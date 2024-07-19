@@ -22,8 +22,6 @@ use crate::{
 
 use self::{amd::AmdGpu, intel::IntelGpu, nvidia::NvidiaGpu, other::OtherGpu};
 
-use super::pci::Vendor;
-
 pub const VID_AMD: u16 = 4098;
 pub const VID_INTEL: u16 = 32902;
 pub const VID_NVIDIA: u16 = 4318;
@@ -320,16 +318,16 @@ impl Gpu {
         Ok(gpu)
     }
 
-    pub fn get_vendor(&self) -> Result<&'static Vendor> {
-        /* Ok(match self {
+    pub fn get_vendor_name(&self) -> Result<&'static str> {
+        Ok(match self {
             Gpu::Amd(gpu) => gpu.device(),
             Gpu::Nvidia(gpu) => gpu.device(),
             Gpu::Intel(gpu) => gpu.device(),
             Gpu::Other(gpu) => gpu.device(),
         }
         .context("no device")?
-        .vendor()) */
-        anyhow::bail!("unable to find")
+        .vendor_name
+        .as_str())
     }
 
     pub fn pci_slot(&self) -> PciSlot {
