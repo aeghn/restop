@@ -151,6 +151,7 @@ impl ResTop {
             }
 
             if event_enum.contains(RedrawEventEnum::TERM)
+                || event_enum.contains(RedrawEventEnum::SENSOR)
                 || (event_enum.contains(RedrawEventEnum::INTERVAL)
                     && now
                         .duration_since(lasy_draw_ts.get())

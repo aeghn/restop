@@ -59,6 +59,7 @@ fn try_change_sort(c: ProcessCell) {
         } else {
             write.replace((c, true));
         }
+        let _ = PROCESS_WORKER_CHANNEL.0.send(ProcessMsg::ReadOnly);
     }
 }
 
