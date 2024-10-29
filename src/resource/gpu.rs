@@ -5,7 +5,7 @@ use chin_tools::wrapper::anyhow::AResult;
 use crate::{
     component::{
         grouped_lines::GroupedLines,
-        s_hotgraph,
+        ls_hotgraph,
         stateful_lines::{StatefulGroupedLines, StatefulLinesType},
     },
     ring::Ring,
@@ -88,7 +88,7 @@ impl Resource for ResGPU {
         let width = args.width;
         let block = GroupedLines::builder(width, &self.theme)
             .kv("UR", self.total_usage.or_nan(|e| format!("{:.1} %", e)))
-            .line(s_hotgraph(width, &self.history, 1., 0.).into())
+            .lines(ls_hotgraph(width, &self.history, 1., 0., 3, ratatui::style::Color::Red).into())
             .active(args.focused)
             .build(format!(
                 "GPU({})",

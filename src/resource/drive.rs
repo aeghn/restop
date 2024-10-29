@@ -7,12 +7,12 @@ use std::{
 };
 
 use chin_tools::wrapper::anyhow::AResult;
-use ratatui::text::Span;
+use ratatui::text::{Line, Span};
 
 use crate::{
     component::{
         grouped_lines::GroupedLines,
-        s_hotgraph, s_percent_graph,
+        ls_hotgraph, s_percent_graph,
         stateful_lines::{StatefulGroupedLines, StatefulLinesType},
     },
     ring::Ring,
@@ -98,8 +98,15 @@ impl ResDrive {
             .collect())
     }
 
-    fn activity_graph(&self, width: u16) -> Vec<Span<'static>> {
-        s_hotgraph(width, &self.activity_history, 100., 0.)
+    fn activity_graph(&self, width: u16) -> Vec<Line<'static>> {
+        ls_hotgraph(
+            width,
+            &self.activity_history,
+            100.,
+            0.,
+            3,
+            ratatui::style::Color::Green,
+        )
     }
 
     fn update_drive_data(&mut self, data: &DriveData) {
@@ -229,7 +236,7 @@ impl Resource for ResDrive {
                     .newest()
                     .or_nan(|e| format!("{:.1} %", e)),
             )
-            .line(self.activity_graph(width).into())
+            .lines(self.activity_graph(width).into())
             .active(args.focused)
             .build(format!("Drive({})", self.supply_name))?;
 
@@ -257,18 +264,20 @@ impl Resource for ResDrive {
                     .newest()
                     .or_nan(|e| format!("{:.1} %", **e * 100.)),
             )
-            .line(self.activity_graph(width - 2).into())
+            .lines(self.activity_graph(width - 2).into())
             .empty_sep()
             .kv(
                 "Read Speed",
                 &label(&self.read_speed_history, &self.read_highest.get()),
             )
-            .line(
-                s_hotgraph(
+            .lines(
+                ls_hotgraph(
                     width - 2,
                     &self.write_speed_history,
                     self.read_highest.get(),
                     0.,
+                    3,
+                    ratatui::style::Color::Green,
                 )
                 .into(),
             )
@@ -277,12 +286,14 @@ impl Resource for ResDrive {
                 "Write Speed",
                 &label(&self.write_speed_history, &self.write_highest.get()),
             )
-            .line(
-                s_hotgraph(
+            .lines(
+                ls_hotgraph(
                     width - 2,
                     &self.write_speed_history,
                     self.write_highest.get(),
                     0.,
+                    3,
+                    ratatui::style::Color::Green,
                 )
                 .into(),
             )

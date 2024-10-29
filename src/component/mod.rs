@@ -1,3 +1,6 @@
+use std::ops::Add;
+
+use itertools::Itertools;
 use ratatui::{
     style::{Color, Modifier, Stylize},
     text::{Line, Span},
@@ -120,76 +123,102 @@ pub fn s_hotgraph<'r>(
     ring: &Ring<f64>,
     max_value: f64,
     min_value: f64,
+    line_height: u16,
+    color: Color,
 ) -> Vec<Span<'static>> {
     let width = width;
 
+    const MAX_HEIGHT: usize = 4;
+
     let bars = [
-        "⡀", "⣀", "⡄", "⣄", "⣠", "⣤", "⡆", "⣆", "⣰", "⣦", "⣴", "⣶", "⡇", "⣇", "⣸", "⣧", "⣼", "⣷",
-        "⣾", "⣿",
-    ];
-    let colors = [
-        Color::DarkGray,
-        Color::Blue,
-        Color::Cyan,
-        Color::Green,
-        Color::Yellow,
-        Color::Magenta,
-        Color::Red,
-        Color::Blue,
-        Color::Cyan,
-        Color::Green,
-        Color::Yellow,
-        Color::Magenta,
-        Color::Red,
-        Color::Blue,
-        Color::Cyan,
-        Color::Green,
-        Color::Yellow,
-        Color::Magenta,
-        Color::Red,
+        [' ', '⢀', '⢠', '⢰', '⢸'],
+        ['⡀', '⣀', '⣠', '⣰', '⣸'],
+        ['⡄', '⣄', '⣤', '⣴', '⣼'],
+        ['⡆', '⣆', '⣦', '⣶', '⣾'],
+        ['⡇', '⣇', '⣧', '⣷', '⣿'],
     ];
 
-    let bar_sep = (max_value - min_value) / bars.len() as f64;
-    let color_sep = (max_value - min_value) / colors.len() as f64;
+    let bar_sep = (max_value - min_value) / (MAX_HEIGHT as i32 * line_height as i32) as f64;
 
-    let get_bar = |e: f64| {
-        let height = ((e - min_value) / bar_sep).round() as i64;
-        let color = ((e - min_value) / color_sep).round() as i64;
+    let mut lines: Vec<String> = vec![];
+    for _ in 0..line_height {
+        lines.push(String::with_capacity(width.into()));
+    }
 
-        let bar = if height <= 1 {
-            &bars[0]
-        } else if height - 1 >= bars.len() as i64 {
-            bars.last().unwrap()
-        } else {
-            &bars[(height - 1) as usize]
-        };
+    let values: Vec<&f64> = ring.new_to_old_iter().take(width as usize * 2).collect();
 
-        let color = if color <= 1 {
-            &colors[0]
-        } else if height - 1 >= colors.len() as i64 {
-            colors.last().unwrap()
-        } else {
-            &colors[(height - 1) as usize]
-        };
+    values.chunks(2).for_each(|e| {
+        let left = e
+            .get(0)
+            .map(|e| ((**e - min_value) / bar_sep).round() as usize)
+            .unwrap_or(0);
+        let right = e
+            .get(1)
+            .map(|e| ((**e - min_value) / bar_sep).round() as usize)
+            .unwrap_or(0);
 
-        Span::raw(*bar).fg(*color)
-    };
+        for i in 1..=line_height {
+            let max = i as usize * MAX_HEIGHT as usize;
+            let r = if max <= left {
+                MAX_HEIGHT
+            } else {
+                (left + MAX_HEIGHT).saturating_sub(max)
+            };
+            let l = if max <= right {
+                MAX_HEIGHT
+            } else {
+                (right + MAX_HEIGHT).saturating_sub(max)
+            };
 
-    let mut spans = Vec::with_capacity((width) as usize);
-
-    let ring_iter = ring.all();
-
-    if (width as usize) >= ring_iter.len() {
-        let len = ring_iter.len();
-        spans.extend(ring_iter.map(|e| get_bar(*e)));
-        for _ in 0..((width as usize).saturating_sub(len)) {
-            spans.push(get_bar(min_value))
+            lines.get_mut(i as usize - 1).and_then(|t| {
+                let mut sym = bars.get(l).and_then(|v| v.get(r)).unwrap_or(&'?');
+                if i == 1 && line_height > 1 {
+                    sym = bars
+                        .get(l.add(1).clamp(1, MAX_HEIGHT))
+                        .and_then(|v| v.get(r.add(1).clamp(1, MAX_HEIGHT)))
+                        .unwrap_or(&'?');
+                }
+                t.insert(0, *sym);
+                Some(())
+            });
         }
-    } else {
-        spans.extend(ring_iter.take(width as usize).map(|e| get_bar(*e)))
+    });
+
+    let true_len = (values.len() + 1) / 2;
+    if (width as usize) >= true_len {
+        let limit = if line_height > 1 { 1 } else { 0 };
+        for line in &mut lines.iter_mut().take(limit) {
+            for _ in 0..((width as usize).saturating_sub(true_len)) {
+                line.insert(0, '⣀');
+            }
+        }
+
+        for line in &mut lines.iter_mut().skip(limit) {
+            for _ in 0..((width as usize).saturating_sub(true_len)) {
+                line.insert(0, ' ');
+            }
+        }
     };
 
-    spans
+    lines
+        .into_iter()
+        .rev()
+        .map(|e| Span::from(e).fg(color))
+        .collect()
+}
+
+pub fn ls_hotgraph<'r>(
+    width: u16,
+    ring: &Ring<f64>,
+    max_value: f64,
+    min_value: f64,
+    line_height: u16,
+    color: Color,
+) -> Vec<Line<'static>> {
+    s_hotgraph(width, ring, max_value, min_value, line_height, color)
+        .into_iter()
+        .map(|e| Line::from(e))
+        .collect()
 }
 
 pub fn s_label(label: &str, style: Style) -> Span<'static> {

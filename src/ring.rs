@@ -5,6 +5,7 @@ pub struct Ring<T> {
     len: usize,
     vec: Vec<T>,
     cursor: usize,
+    pub name: String,
 }
 
 impl<T> Ring<T> {
@@ -13,8 +14,17 @@ impl<T> Ring<T> {
             len: length,
             vec: Vec::with_capacity(length),
             cursor: 0,
+            name: "".to_owned(),
         }
     }
+
+    pub fn name(self, name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            ..self
+        }
+    }
+
     pub fn insert_at_first(&mut self, v: T) {
         if self.vec.len() < self.len {
             self.vec.insert(0, v);
@@ -25,11 +35,6 @@ impl<T> Ring<T> {
         }
     }
 
-    pub fn next(&mut self) -> &T {
-        self.cursor = (self.len + self.cursor + 1) % self.len;
-        &self.vec[self.cursor]
-    }
-
     pub fn newest(&self) -> Option<&T> {
         if self.vec.is_empty() {
             None
@@ -38,7 +43,7 @@ impl<T> Ring<T> {
         }
     }
 
-    pub fn all(&self) -> IterRing<'_, T> {
+    pub fn new_to_old_iter(&self) -> IterRing<'_, T> {
         IterRing {
             vec: &self.vec,
             chain: (self.cursor..self.vec.len()).chain(0..self.cursor),

@@ -6,7 +6,7 @@ use ratatui::layout::Rect;
 use crate::{
     component::{
         grouped_lines::GroupedLines,
-        s_hotgraph,
+        ls_hotgraph,
         stateful_lines::{StatefulGroupedLines, StatefulLinesType},
     },
     ring::Ring,
@@ -179,13 +179,25 @@ impl Resource for ResNetwork {
                         .or_nan(|e| convert_storage(**e, false)),
                 ),
             ])
-            .line(s_hotgraph(width, &self.sendhistory, self.highest_sent_speed.get(), 0.).into())
-            .line(
-                s_hotgraph(
+            .lines(
+                ls_hotgraph(
+                    width,
+                    &self.sendhistory,
+                    self.highest_sent_speed.get(),
+                    0.,
+                    3,
+                    ratatui::style::Color::Yellow,
+                )
+                .into(),
+            )
+            .lines(
+                ls_hotgraph(
                     width,
                     &self.receive_history,
                     self.highest_received_speed.get(),
                     0.,
+                    3,
+                    ratatui::style::Color::Blue,
                 )
                 .into(),
             )
@@ -223,12 +235,14 @@ impl Resource for ResNetwork {
                 "Receiving",
                 &label(&self.receive_history, &self.highest_received_speed.get()),
             )
-            .line(
-                s_hotgraph(
+            .lines(
+                ls_hotgraph(
                     width - 2,
                     &self.receive_history,
                     self.highest_received_speed.get(),
                     0.,
+                    3,
+                    ratatui::style::Color::Blue,
                 )
                 .into(),
             )
@@ -236,12 +250,14 @@ impl Resource for ResNetwork {
                 "Sending",
                 &label(&self.sendhistory, &self.highest_sent_speed.get()),
             )
-            .line(
-                s_hotgraph(
+            .lines(
+                ls_hotgraph(
                     width - 2,
                     &self.sendhistory,
                     self.highest_sent_speed.get(),
                     0.,
+                    3,
+                    ratatui::style::Color::Yellow,
                 )
                 .into(),
             )

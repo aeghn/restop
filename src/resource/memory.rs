@@ -5,7 +5,7 @@ use ratatui::text::Line;
 use crate::{
     component::{
         grouped_lines::GroupedLines,
-        s_hotgraph,
+        ls_hotgraph,
         stateful_lines::{StatefulGroupedLines, StatefulLinesType},
     },
     ring::Ring,
@@ -121,7 +121,14 @@ impl Resource for ResMEM {
                 )
             })
             .kv("Usage", self.mem_usage())
-            .line(Line::from(s_hotgraph(width, &self.usage_history, 1., 0.)))
+            .lines(ls_hotgraph(
+                width,
+                &self.usage_history,
+                1.,
+                0.,
+                3,
+                ratatui::style::Color::Magenta,
+            ))
             .active(args.focused)
             .build("Memory")?;
 
@@ -134,12 +141,14 @@ impl Resource for ResMEM {
 
         let usage = GroupedLines::builder(width, &self.theme)
             .kv_sep("Memory", self.mem_usage().as_str())
-            .line(Line::from(s_hotgraph(
+            .lines(ls_hotgraph(
                 width - 2,
                 &self.usage_history,
                 1.,
                 0.,
-            )))
+                3,
+                ratatui::style::Color::Magenta,
+            ))
             .active(args.active)
             .build("Usage")?;
 

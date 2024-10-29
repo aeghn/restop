@@ -154,9 +154,9 @@ impl ResTop {
                 || event_enum.contains(RedrawEventEnum::SENSOR)
                 || (event_enum.contains(RedrawEventEnum::INTERVAL)
                     && now
-                    .duration_since(lasy_draw_ts.get())
-                    .unwrap_or(Duration::from_secs(1))
-                    > Duration::from_millis(300))
+                        .duration_since(lasy_draw_ts.get())
+                        .unwrap_or(Duration::from_secs(1))
+                        > Duration::from_millis(300))
             {
                 lasy_draw_ts.set(now);
 

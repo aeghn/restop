@@ -7,7 +7,7 @@ use ratatui::text::{Line, Span};
 use crate::{
     component::{
         grouped_lines::GroupedLines,
-        s_hotgraph,
+        ls_hotgraph, s_hotgraph,
         stateful_lines::{StatefulGroupedLines, StatefulLinesType},
         PaddingH,
     },
@@ -17,8 +17,7 @@ use crate::{
         units::{convert_frequency, convert_temperature},
     },
     tarits::{NaNDefault, None2NaN, None2NaNDef},
-    view::theme::SharedTheme,
-    view::{OverviewArg, PageArg},
+    view::{theme::SharedTheme, OverviewArg, PageArg},
 };
 
 use super::{Resource, SensorResultType, SensorRsp};
@@ -54,7 +53,7 @@ impl ResCPU {
             old_total_usage: Cell::default(),
             old_thread_usages: RefCell::default(),
             logical_cpus_amount: Cell::new(logic_size),
-            total_history: Ring::new(1000),
+            total_history: Ring::new(1000).name("CCPU"),
             theme,
             tempurature: None,
             thread_history: vec![],
@@ -146,7 +145,14 @@ impl Resource for ResCPU {
                     self.tempurature.or_nan(|e| convert_temperature(*e as f64))
                 ),
             )
-            .line(s_hotgraph(width, &self.total_history, 100., 0.).into())
+            .lines(ls_hotgraph(
+                width,
+                &self.total_history,
+                100.,
+                0.,
+                3,
+                ratatui::style::Color::Red,
+            ))
             .active(args.focused)
             .build("CPU")?;
 
@@ -165,7 +171,15 @@ impl Resource for ResCPU {
             .map(|(id, ring)| {
                 (
                     id,
-                    s_hotgraph(width.saturating_sub(15), ring, 100., 0.).padding(),
+                    s_hotgraph(
+                        width.saturating_sub(15),
+                        ring,
+                        100.,
+                        0.,
+                        1,
+                        ratatui::style::Color::Red,
+                    )
+                    .padding(),
                     ring.newest(),
                     match self.frequences.as_ref().map(|e| e.get(id)) {
                         Some(Some(Some(o))) => Some(o),
