@@ -1,6 +1,9 @@
+use chrono::{DateTime, Local};
 use crossterm::event::KeyCode;
 use ratatui::{
     layout::{Constraint, Layout, Rect},
+    style::{Style, Stylize},
+    text::{Line, Span, Text},
     Frame,
 };
 
@@ -17,8 +20,42 @@ pub struct SidebarAndPage {
 }
 
 impl SidebarAndPage {
+    fn render_top(&mut self, frame: &mut Frame, top: Rect) {
+        let current_local: DateTime<Local> = Local::now();
+        let time = current_local.format("%Y-%m-%d %H:%M:%S");
+
+        let mut spans = vec![];
+        if top.width > 30 {
+            spans.push(Span::styled("  ", Style::new()));
+        }
+        if top.width > 28 {
+            spans.push(Span::styled("ResTop", Style::new().bold().italic()));
+        }
+        if top.width > 22 {
+            spans.push(Span::styled(" * ", Style::new()));
+        }
+        spans.push(Span::styled(time.to_string(), Style::new()));
+
+        let header = Line::from(spans);
+
+        frame.render_widget(header, top);
+    }
+
     fn overview(&mut self, frame: &mut Frame, resources: &mut Vec<ResourceType>) {
         let rect = self.sidebar.clone();
+        let top = Rect {
+            y: rect.y,
+            height: 1,
+            ..rect
+        };
+
+        self.render_top(frame, top);
+
+        let rect = Rect {
+            y: rect.y + 1,
+            height: rect.height - 1,
+            ..rect
+        };
 
         let mut args = OverviewArg {
             width: rect.width.clone(),
