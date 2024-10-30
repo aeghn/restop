@@ -3,10 +3,13 @@ use std::ops::Add;
 use itertools::Itertools;
 use ratatui::{
     style::{Color, Modifier, Stylize},
+    symbols::line::*,
     text::{Line, Span},
+    widgets::Scrollbar,
+    Frame,
 };
 
-use crate::ring::Ring;
+use crate::ring::{self, Ring};
 use chin_tools::utils::stringutils::split_by_len;
 use ratatui::style::Style;
 
@@ -257,5 +260,60 @@ impl PaddingH for Vec<Span<'static>> {
         this.insert(0, Span::raw(" "));
         this.push(Span::raw(" "));
         this
+    }
+}
+
+pub fn render_border(
+    focused: bool,
+    area: ratatui::prelude::Rect,
+    buf: &mut ratatui::prelude::Buffer,
+) {
+    let tl;
+    let tr;
+    let hor;
+    let ver;
+    let bl;
+    let br;
+    match focused {
+        false => {
+            tl = TOP_LEFT;
+            tr = TOP_RIGHT;
+            hor = HORIZONTAL;
+            ver = VERTICAL;
+            bl = BOTTOM_LEFT;
+            br = BOTTOM_RIGHT;
+        }
+        true => {
+            tl = DOUBLE_TOP_LEFT;
+            tr = DOUBLE_TOP_RIGHT;
+            hor = DOUBLE_HORIZONTAL;
+            ver = DOUBLE_VERTICAL;
+            bl = DOUBLE_BOTTOM_LEFT;
+            br = DOUBLE_BOTTOM_RIGHT;
+        }
+    }
+
+    let top = area.top();
+    let right = area.right().saturating_sub(1);
+    let bot = area.bottom().saturating_sub(1);
+    let left = area.left();
+
+    buf.set_string(left, top, tl, Style::new());
+    buf.set_string(right, top, tr, Style::new());
+
+    buf.set_string(left, bot, bl, Style::new());
+    buf.set_string(right, bot, br, Style::new());
+
+    for i in left.saturating_add(1)..right {
+        buf.set_string(i, top, hor, Style::new());
+    }
+    for i in left.saturating_add(1)..right {
+        buf.set_string(i, bot, hor, Style::new());
+    }
+    for i in top.saturating_add(1)..bot {
+        buf.set_string(left, i, ver, Style::new());
+    }
+    for i in top.saturating_add(1)..bot {
+        buf.set_string(right, i, ver, Style::new());
     }
 }

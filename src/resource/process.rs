@@ -24,7 +24,7 @@ use crate::{
     component::{
         grouped_lines::GroupedLines,
         input::Input,
-        s_label,
+        render_border, s_label,
         stateful_lines::{StatefulColumn, StatefulLinesType},
     },
     sensor::{
@@ -229,23 +229,30 @@ impl Resource for ResProcess {
     }
 
     fn render_page(&mut self, frame: &mut ratatui::Frame, args: &mut PageArg) {
+        let inner = Rect {
+            x: args.rect.x.saturating_add(1),
+            y: args.rect.y.saturating_add(1),
+            width: args.rect.width.saturating_sub(2),
+            height: args.rect.height.saturating_sub(2),
+        };
+
         if let Some(filter) = self.filter.as_mut() {
             let rect = Rect {
-                y: args.rect.y,
+                y: inner.y,
                 height: 1,
-                ..args.rect
+                ..inner
             };
             filter.draw(frame, &rect);
         }
 
         let content_rect = if self.filter.is_some() {
             Rect {
-                y: args.rect.y.saturating_add(1),
-                height: args.rect.height.saturating_sub(1),
-                ..args.rect
+                y: inner.y.saturating_add(1),
+                height: inner.height.saturating_sub(1),
+                ..inner
             }
         } else {
-            args.rect
+            inner
         };
         if content_rect.height > 0 {
             match self._build_page(args) {
@@ -262,6 +269,9 @@ impl Resource for ResProcess {
                 lines.render(frame, content_rect)
             }
         }
+
+        let buffer = frame.buffer_mut();
+        render_border(true, args.rect, buffer);
     }
 }
 
