@@ -6,7 +6,7 @@ use ratatui::layout::Rect;
 use crate::{
     component::{
         grouped_lines::GroupedLines,
-        ls_hotgraph,
+        ls_history_graph,
         stateful_lines::{StatefulGroupedLines, StatefulLinesType},
     },
     ring::Ring,
@@ -180,7 +180,7 @@ impl Resource for ResNetwork {
                 ),
             ])
             .lines(
-                ls_hotgraph(
+                ls_history_graph(
                     width,
                     &self.sendhistory,
                     self.highest_sent_speed.get(),
@@ -191,7 +191,7 @@ impl Resource for ResNetwork {
                 .into(),
             )
             .lines(
-                ls_hotgraph(
+                ls_history_graph(
                     width,
                     &self.receive_history,
                     self.highest_received_speed.get(),
@@ -211,7 +211,7 @@ impl Resource for ResNetwork {
         Ok(block)
     }
 
-    fn _build_page(&mut self, args: &mut PageArg) -> AResult<String> {
+    fn _build_page(&mut self, args: &PageArg) -> AResult<String> {
         let mut blocks = vec![];
         let Rect {
             width,
@@ -236,7 +236,7 @@ impl Resource for ResNetwork {
                 &label(&self.receive_history, &self.highest_received_speed.get()),
             )
             .lines(
-                ls_hotgraph(
+                ls_history_graph(
                     width - 2,
                     &self.receive_history,
                     self.highest_received_speed.get(),
@@ -251,7 +251,7 @@ impl Resource for ResNetwork {
                 &label(&self.sendhistory, &self.highest_sent_speed.get()),
             )
             .lines(
-                ls_hotgraph(
+                ls_history_graph(
                     width - 2,
                     &self.sendhistory,
                     self.highest_sent_speed.get(),
@@ -283,7 +283,7 @@ impl Resource for ResNetwork {
             .kv_sep("Manufacturer", self.info.vendor.or_unk_def())
             .kv_sep("Driver Used", self.info.driver_name.or_unk_def())
             .kv_sep("Interface", self.interface().as_str())
-            .kv_sep("Hardware Address", self.info.hw_address.or_unk_def())
+            .kv_sep("Hardware Address", "****************")
             .active(args.active)
             .build("Properties")?;
         blocks.push(props);

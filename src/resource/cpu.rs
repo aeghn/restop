@@ -7,7 +7,7 @@ use ratatui::text::{Line, Span};
 use crate::{
     component::{
         grouped_lines::GroupedLines,
-        ls_hotgraph, s_hotgraph,
+        ls_history_graph, s_history_graph,
         stateful_lines::{StatefulGroupedLines, StatefulLinesType},
         PaddingH,
     },
@@ -145,7 +145,7 @@ impl Resource for ResCPU {
                     self.tempurature.or_nan(|e| convert_temperature(*e as f64))
                 ),
             )
-            .lines(ls_hotgraph(
+            .lines(ls_history_graph(
                 width,
                 &self.total_history,
                 100.,
@@ -159,7 +159,7 @@ impl Resource for ResCPU {
         Ok(block)
     }
 
-    fn _build_page(&mut self, args: &mut PageArg) -> AResult<String> {
+    fn _build_page(&mut self, args: &PageArg) -> AResult<String> {
         let width = args.rect.width;
         let mut result = vec![];
         let info = &self.info;
@@ -171,7 +171,7 @@ impl Resource for ResCPU {
             .map(|(id, ring)| {
                 (
                     id,
-                    s_hotgraph(
+                    s_history_graph(
                         width.saturating_sub(15),
                         ring,
                         100.,

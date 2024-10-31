@@ -12,14 +12,14 @@ use ratatui::{
 use super::grouped_lines::GroupedLines;
 
 #[derive(Default, Clone, Debug)]
-pub struct LinesVertialState {
+pub struct LinesVerticalState {
     pub show_start: usize,
     pub view_height: u16,
     cur_line: usize,
     end: usize,
 }
 
-impl LinesVertialState {
+impl LinesVerticalState {
     pub fn show_end(&self) -> usize {
         self.show_start.saturating_add(self.view_height.into())
     }
@@ -63,12 +63,12 @@ impl LinesVertialState {
 #[derive(Clone, Debug)]
 pub struct StatefulColumn<'a> {
     lines: Vec<Line<'a>>,
-    state: LinesVertialState,
+    state: LinesVerticalState,
     header: Option<Line<'a>>,
 }
 
 impl<'a> Deref for StatefulColumn<'a> {
-    type Target = LinesVertialState;
+    type Target = LinesVerticalState;
 
     fn deref(&self) -> &Self::Target {
         &self.state
@@ -229,7 +229,7 @@ impl<'a> StatefulGroupedLines<'a> {
         self.blocks = new_blocks;
     }
 
-    pub fn render(&mut self, frame: &mut Frame, rect: Rect) {
+    pub fn render(&mut self, frame: &mut Frame, rect: Rect, active: bool) {
         if rect.width == 0 || rect.height == 0 {
             return;
         }
@@ -258,11 +258,13 @@ impl<'a> StatefulGroupedLines<'a> {
                     end_y.replace(show_end.saturating_sub(range.start) as u16);
                 };
 
+                let focused = self.focused_index().map_or(false, |sel| range.index == sel);
                 let block = block
                     .clone()
                     .start(start_y)
                     .end(end_y)
-                    .focused(self.focused_index().map_or(false, |sel| range.index == sel));
+                    .focused(focused && active)
+                    .active(focused);
 
                 let y = rect
                     .y

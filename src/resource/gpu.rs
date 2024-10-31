@@ -5,7 +5,7 @@ use chin_tools::wrapper::anyhow::AResult;
 use crate::{
     component::{
         grouped_lines::GroupedLines,
-        ls_hotgraph,
+        ls_history_graph,
         stateful_lines::{StatefulGroupedLines, StatefulLinesType},
     },
     ring::Ring,
@@ -14,7 +14,7 @@ use crate::{
         units::convert_power,
     },
     tarits::{None2NaN, None2NaNDef, None2NanString},
-    view::{theme::SharedTheme, OverviewArg},
+    view::{theme::SharedTheme, OverviewArg, PageArg},
 };
 
 use super::{Resource, SensorResultType, SensorRsp};
@@ -88,7 +88,10 @@ impl Resource for ResGPU {
         let width = args.width;
         let block = GroupedLines::builder(width, &self.theme)
             .kv("UR", self.total_usage.or_nan(|e| format!("{:.1} %", e)))
-            .lines(ls_hotgraph(width, &self.history, 1., 0., 3, ratatui::style::Color::Red).into())
+            .lines(
+                ls_history_graph(width, &self.history, 1., 0., 3, ratatui::style::Color::Red)
+                    .into(),
+            )
             .active(args.focused)
             .build(format!(
                 "GPU({})",
@@ -114,7 +117,7 @@ impl Resource for ResGPU {
         "GPU".to_string()
     }
 
-    fn _build_page(&mut self, args: &mut crate::view::PageArg) -> AResult<String> {
+    fn _build_page(&mut self, args: &PageArg) -> AResult<String> {
         let width = args.rect.width;
         let mut blocks = vec![];
 
@@ -140,25 +143,5 @@ impl Resource for ResGPU {
 
     fn handle_navi_event(&mut self, _event: &crate::view::NavigatorEvent) -> bool {
         false
-    }
-
-    fn render_page(&mut self, frame: &mut ratatui::Frame, args: &mut crate::view::PageArg) {
-        let rect = args.rect;
-        match self._build_page(args) {
-            Ok(_) => {}
-            Err(err) => {
-                tracing::error!("unable to render_page: {}", err);
-                return;
-            }
-        }
-
-        let lines = self.cached_page_state();
-
-        match lines {
-            StatefulLinesType::Groups(ls) => {
-                ls.render(frame, rect);
-            }
-            StatefulLinesType::Lines(vls) => vls.render(frame, rect),
-        }
     }
 }

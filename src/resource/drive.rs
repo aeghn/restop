@@ -12,7 +12,7 @@ use ratatui::text::{Line, Span};
 use crate::{
     component::{
         grouped_lines::GroupedLines,
-        ls_hotgraph, s_percent_graph,
+        ls_history_graph, s_percent_graph,
         stateful_lines::{StatefulGroupedLines, StatefulLinesType},
     },
     ring::Ring,
@@ -99,7 +99,7 @@ impl ResDrive {
     }
 
     fn activity_graph(&self, width: u16) -> Vec<Line<'static>> {
-        ls_hotgraph(
+        ls_history_graph(
             width,
             &self.activity_history,
             100.,
@@ -243,7 +243,7 @@ impl Resource for ResDrive {
         Ok(block)
     }
 
-    fn _build_page(&mut self, args: &mut PageArg) -> AResult<String> {
+    fn _build_page(&mut self, args: &PageArg) -> AResult<String> {
         let width = args.rect.width;
         let mut blocks = vec![];
 
@@ -271,7 +271,7 @@ impl Resource for ResDrive {
                 &label(&self.read_speed_history, &self.read_highest.get()),
             )
             .lines(
-                ls_hotgraph(
+                ls_history_graph(
                     width - 2,
                     &self.write_speed_history,
                     self.read_highest.get(),
@@ -287,7 +287,7 @@ impl Resource for ResDrive {
                 &label(&self.write_speed_history, &self.write_highest.get()),
             )
             .lines(
-                ls_hotgraph(
+                ls_history_graph(
                     width - 2,
                     &self.write_speed_history,
                     self.write_highest.get(),
@@ -319,8 +319,13 @@ impl Resource for ResDrive {
                     .into(),
                 )
                 .line(
-                    s_percent_graph(part.used_bytes() as f64, part.total_bytes as f64, width - 2)
-                        .into(),
+                    s_percent_graph(
+                        part.used_bytes() as f64,
+                        part.total_bytes as f64,
+                        width - 2,
+                        false,
+                    )
+                    .into(),
                 );
         }
 

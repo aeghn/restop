@@ -1,11 +1,10 @@
 use chin_tools::wrapper::anyhow::AResult;
 use itertools::Itertools;
-use ratatui::text::Line;
 
 use crate::{
     component::{
         grouped_lines::GroupedLines,
-        ls_hotgraph,
+        ls_history_graph,
         stateful_lines::{StatefulGroupedLines, StatefulLinesType},
     },
     ring::Ring,
@@ -121,7 +120,7 @@ impl Resource for ResMEM {
                 )
             })
             .kv("Usage", self.mem_usage())
-            .lines(ls_hotgraph(
+            .lines(ls_history_graph(
                 width,
                 &self.usage_history,
                 1.,
@@ -135,13 +134,13 @@ impl Resource for ResMEM {
         Ok(block)
     }
 
-    fn _build_page(&mut self, args: &mut PageArg) -> AResult<String> {
+    fn _build_page(&mut self, args: &PageArg) -> AResult<String> {
         let width = args.rect.width;
         let mut block_vec = vec![];
 
         let usage = GroupedLines::builder(width, &self.theme)
             .kv_sep("Memory", self.mem_usage().as_str())
-            .lines(ls_hotgraph(
+            .lines(ls_history_graph(
                 width - 2,
                 &self.usage_history,
                 1.,

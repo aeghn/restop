@@ -1,6 +1,7 @@
 use chin_tools::wrapper::anyhow::AResult;
 use ratatui::{
     layout::Rect,
+    style::Stylize,
     symbols::line::*,
     text::{Line, Span},
     widgets::Widget,
@@ -83,34 +84,21 @@ impl<'a> Widget for GroupedLines<'a> {
         let start = self.start.unwrap_or(0);
         let end = self.end.unwrap_or(u16::MAX);
 
-        let fg = self.theme.fg(self.active);
+        let fg = self.theme.fg();
 
         let offset = start;
 
-        let tl;
-        let tr;
-        let hor;
-        let ver;
-        let bl;
-        let br;
-        match self.focused {
-            false => {
-                tl = TOP_LEFT;
-                tr = TOP_RIGHT;
-                hor = HORIZONTAL;
-                ver = VERTICAL;
-                bl = BOTTOM_LEFT;
-                br = BOTTOM_RIGHT;
-            }
-            true => {
-                tl = DOUBLE_TOP_LEFT;
-                tr = DOUBLE_TOP_RIGHT;
-                hor = DOUBLE_HORIZONTAL;
-                ver = DOUBLE_VERTICAL;
-                bl = DOUBLE_BOTTOM_LEFT;
-                br = DOUBLE_BOTTOM_RIGHT;
-            }
-        }
+        let tl = if self.focused { "╒" } else { TOP_LEFT };
+        let tr = if self.focused { "╕" } else { TOP_RIGHT };
+        let thor = if self.focused {
+            DOUBLE_HORIZONTAL
+        } else {
+            HORIZONTAL
+        };
+        let hor = HORIZONTAL;
+        let ver = VERTICAL;
+        let bl = BOTTOM_LEFT;
+        let br = BOTTOM_RIGHT;
 
         for i in start..end {
             if i.saturating_sub(start) > area.height {
@@ -120,21 +108,30 @@ impl<'a> Widget for GroupedLines<'a> {
             let y = (area.y + i).saturating_sub(offset);
 
             if i == 0 {
-                let mut s = String::new();
-                s.push_str(tl);
-                s.push(' ');
-                s.push_str(&self.title);
-                s.push(' ');
+                let mut s = vec![];
+                s.push(Span::raw(tl));
+                s.push(Span::raw(" "));
+
+                let mut title = Span::from(self.title.as_str());
+                if self.focused {
+                    title = title.bold();
+                } else if self.active {
+                    title = title.bold();
+                }
+
+                s.push(title);
+
+                s.push(" ".into());
                 for _ in 0..(area
                     .width
                     .saturating_sub(4)
                     .saturating_sub(self.title.len() as u16))
                 {
-                    s.push_str(hor);
+                    s.push(thor.into());
                 }
-                s.push_str(tr);
+                s.push(tr.into());
 
-                Line::styled(s, fg).render(
+                Line::from(s).render(
                     Rect {
                         x: area.x,
                         y,
@@ -146,7 +143,7 @@ impl<'a> Widget for GroupedLines<'a> {
             } else if i.saturating_sub(1) as usize >= self.lines.len() {
                 let mut s = String::new();
                 s.push_str(bl);
-                for _ in 0..(area.width - 2) {
+                for _ in 0..(area.width.saturating_sub(2)) {
                     s.push_str(hor);
                 }
                 s.push_str(br);
@@ -186,7 +183,7 @@ impl<'a> Widget for GroupedLines<'a> {
 
                 Span::styled(ver, fg).render(
                     Rect {
-                        x: (area.x + area.width).saturating_sub(1),
+                        x: area.right().saturating_sub(1),
                         y,
                         width: 1,
                         height: 1,

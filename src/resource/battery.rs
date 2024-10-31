@@ -83,6 +83,7 @@ impl Resource for ResBattery {
                         .map_or(0., |e| e.charge.as_ref().map_or(0., |e| *e)),
                     1.,
                     width.saturating_sub(2),
+                    true,
                 )
                 .into(),
             )
@@ -92,7 +93,7 @@ impl Resource for ResBattery {
         Ok(block)
     }
 
-    fn _build_page(&mut self, args: &mut PageArg) -> AResult<String> {
+    fn _build_page(&mut self, args: &PageArg) -> AResult<String> {
         let Rect {
             width,
             height: _,
@@ -109,6 +110,7 @@ impl Resource for ResBattery {
                         .map_or(0., |e| e.charge.as_ref().map_or(0., |e| *e)),
                     1.,
                     width - 2,
+                    true,
                 )
                 .into(),
             )

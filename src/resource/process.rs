@@ -138,14 +138,12 @@ impl Resource for ResProcess {
         Ok(block)
     }
 
-    fn _build_page(&mut self, args: &mut PageArg) -> AResult<String> {
+    fn _build_page(&mut self, args: &PageArg) -> AResult<String> {
         self.view_state.set_header(self.line_builder.to_header());
         self.view_state.update_view_height(args.rect.height);
         if let Some(data) = self.data.as_ref() {
             self.view_state.update_lines(data, |e, s| {
-                self.line_builder
-                    .to_line(e, s)
-                    .fg(self.theme.fg(args.active))
+                self.line_builder.to_line(e, s).fg(self.theme.fg())
             });
         }
 
@@ -228,7 +226,7 @@ impl Resource for ResProcess {
         "".to_string()
     }
 
-    fn render_page(&mut self, frame: &mut ratatui::Frame, args: &mut PageArg) {
+    fn render_page(&mut self, frame: &mut ratatui::Frame, args: &PageArg, _max_width: u16) {
         let inner = Rect {
             x: args.rect.x.saturating_add(1),
             y: args.rect.y.saturating_add(1),
@@ -271,7 +269,7 @@ impl Resource for ResProcess {
         }
 
         let buffer = frame.buffer_mut();
-        render_border(true, args.rect, buffer);
+        render_border(args.active, args.rect, buffer);
     }
 }
 
@@ -356,7 +354,7 @@ impl ProcessCell {
                 None => {
                     return s_label(
                         &self.keep_width(conver_storage_width4(0.).as_str()),
-                        Style::new().fg(Color::DarkGray),
+                        Style::new().fg(Color::Gray),
                     )
                 }
             },
@@ -365,7 +363,7 @@ impl ProcessCell {
                 None => {
                     return s_label(
                         &self.keep_width(conver_storage_width4(0.).as_str()),
-                        Style::new().fg(Color::DarkGray),
+                        Style::new().fg(Color::Gray),
                     )
                 }
             },

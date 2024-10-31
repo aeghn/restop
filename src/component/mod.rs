@@ -1,15 +1,12 @@
 use std::ops::Add;
 
-use itertools::Itertools;
 use ratatui::{
     style::{Color, Modifier, Stylize},
     symbols::line::*,
     text::{Line, Span},
-    widgets::Scrollbar,
-    Frame,
 };
 
-use crate::ring::{self, Ring};
+use crate::ring::Ring;
 use chin_tools::utils::stringutils::split_by_len;
 use ratatui::style::Style;
 
@@ -64,20 +61,27 @@ pub fn ls_kv(
     }
 }
 
-pub fn s_percent_graph(value: f64, total: f64, width: u16) -> Vec<Span<'static>> {
+pub fn s_percent_graph(
+    value: f64,
+    total: f64,
+    width: u16,
+    high_is_good: bool,
+) -> Vec<Span<'static>> {
     let percent = (value * 100. / total) as u16;
-    let graph_width = width.saturating_sub((2) as u16);
+    let graph_width = width.saturating_sub(3);
 
     let mut colors = [
-        Color::DarkGray,
-        Color::Blue,
-        Color::Cyan,
         Color::Green,
+        Color::Cyan,
+        Color::Blue,
         Color::Yellow,
         Color::Magenta,
         Color::Red,
     ];
-    colors.reverse();
+
+    if high_is_good {
+        colors.reverse();
+    }
 
     let value_width = graph_width as usize * percent as usize / 100;
     let color = percent / (100 / colors.len() as u16);
@@ -116,12 +120,12 @@ pub fn s_percent_graph(value: f64, total: f64, width: u16) -> Vec<Span<'static>>
     vec![
         Span::raw("["),
         Span::styled(graph, Style::new().fg(color)),
-        Span::raw(format!("{}", percent)),
+        Span::raw(format!("{}%", percent)),
         Span::raw("]"),
     ]
 }
 
-pub fn s_hotgraph<'r>(
+pub fn s_history_graph<'r>(
     width: u16,
     ring: &Ring<f64>,
     max_value: f64,
@@ -210,7 +214,7 @@ pub fn s_hotgraph<'r>(
         .collect()
 }
 
-pub fn ls_hotgraph<'r>(
+pub fn ls_history_graph<'r>(
     width: u16,
     ring: &Ring<f64>,
     max_value: f64,
@@ -218,7 +222,7 @@ pub fn ls_hotgraph<'r>(
     line_height: u16,
     color: Color,
 ) -> Vec<Line<'static>> {
-    s_hotgraph(width, ring, max_value, min_value, line_height, color)
+    s_history_graph(width, ring, max_value, min_value, line_height, color)
         .into_iter()
         .map(|e| Line::from(e))
         .collect()
@@ -268,52 +272,40 @@ pub fn render_border(
     area: ratatui::prelude::Rect,
     buf: &mut ratatui::prelude::Buffer,
 ) {
-    let tl;
-    let tr;
-    let hor;
-    let ver;
-    let bl;
-    let br;
-    match focused {
-        false => {
-            tl = TOP_LEFT;
-            tr = TOP_RIGHT;
-            hor = HORIZONTAL;
-            ver = VERTICAL;
-            bl = BOTTOM_LEFT;
-            br = BOTTOM_RIGHT;
-        }
-        true => {
-            tl = DOUBLE_TOP_LEFT;
-            tr = DOUBLE_TOP_RIGHT;
-            hor = DOUBLE_HORIZONTAL;
-            ver = DOUBLE_VERTICAL;
-            bl = DOUBLE_BOTTOM_LEFT;
-            br = DOUBLE_BOTTOM_RIGHT;
-        }
-    }
+    let tl = if focused { "╒" } else { TOP_LEFT };
+    let tr = if focused { "╕" } else { TOP_RIGHT };
+    let thor = if focused {
+        DOUBLE_HORIZONTAL
+    } else {
+        HORIZONTAL
+    };
+    let hor = HORIZONTAL;
+    let ver = VERTICAL;
+    let bl = BOTTOM_LEFT;
+    let br = BOTTOM_RIGHT;
 
     let top = area.top();
     let right = area.right().saturating_sub(1);
     let bot = area.bottom().saturating_sub(1);
     let left = area.left();
+    let style = Style::new();
 
-    buf.set_string(left, top, tl, Style::new());
-    buf.set_string(right, top, tr, Style::new());
+    buf.set_string(left, top, tl, style);
+    buf.set_string(right, top, tr, style);
 
-    buf.set_string(left, bot, bl, Style::new());
-    buf.set_string(right, bot, br, Style::new());
+    buf.set_string(left, bot, bl, style);
+    buf.set_string(right, bot, br, style);
 
     for i in left.saturating_add(1)..right {
-        buf.set_string(i, top, hor, Style::new());
+        buf.set_string(i, top, thor, style);
     }
     for i in left.saturating_add(1)..right {
-        buf.set_string(i, bot, hor, Style::new());
+        buf.set_string(i, bot, hor, style);
     }
     for i in top.saturating_add(1)..bot {
-        buf.set_string(left, i, ver, Style::new());
+        buf.set_string(left, i, ver, style);
     }
     for i in top.saturating_add(1)..bot {
-        buf.set_string(right, i, ver, Style::new());
+        buf.set_string(right, i, ver, style);
     }
 }

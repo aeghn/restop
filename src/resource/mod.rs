@@ -60,7 +60,7 @@ pub trait Resource {
 
     fn overview_content(&self, args: &mut OverviewArg) -> AResult<GroupedLines<'static>>;
 
-    fn _build_page(&mut self, _args: &mut PageArg) -> AResult<String> {
+    fn _build_page(&mut self, _args: &PageArg) -> AResult<String> {
         Ok("Not Supported".to_string())
     }
 
@@ -70,9 +70,24 @@ pub trait Resource {
         false
     }
 
-    fn render_page(&mut self, frame: &mut Frame, args: &mut PageArg) {
-        let rect = args.rect;
-        match self._build_page(args) {
+    fn render_page(&mut self, frame: &mut Frame, args: &PageArg, max_width: u16) {
+        let rect = if max_width > 0 && args.rect.width > max_width {
+            let side = (args.rect.width - max_width) / 2;
+            Rect {
+                x: args.rect.x.saturating_add(side),
+                width: args.rect.width.saturating_sub(side * 2),
+                ..args.rect
+            }
+        } else {
+            args.rect
+        };
+
+        let args = PageArg {
+            rect,
+            ..args.clone()
+        };
+
+        match self._build_page(&args) {
             Ok(_) => {}
             Err(err) => {
                 tracing::error!("unable to render_page: {}", err);
@@ -84,7 +99,7 @@ pub trait Resource {
 
         match lines {
             StatefulLinesType::Groups(ls) => {
-                ls.render(frame, rect);
+                ls.render(frame, rect, args.active);
             }
             StatefulLinesType::Lines(vls) => vls.render(frame, rect),
         }
@@ -245,14 +260,16 @@ impl ResourceType {
             let mut args = args.clone();
             args.rect = content_rect;
 
+            const MAX_WIDTH: u16 = 90;
+
             match self {
-                ResourceType::CPU(rt) => rt.render_page(frame, &mut args),
-                ResourceType::Memory(rt) => rt.render_page(frame, &mut args),
-                ResourceType::GPU(rt) => rt.render_page(frame, &mut args),
-                ResourceType::Drive(rt) => rt.render_page(frame, &mut args),
-                ResourceType::Network(rt) => rt.render_page(frame, &mut args),
-                ResourceType::Battery(rt) => rt.render_page(frame, &mut args),
-                ResourceType::Process(rt) => rt.render_page(frame, &mut args),
+                ResourceType::CPU(rt) => rt.render_page(frame, &mut args, MAX_WIDTH),
+                ResourceType::Memory(rt) => rt.render_page(frame, &mut args, MAX_WIDTH),
+                ResourceType::GPU(rt) => rt.render_page(frame, &mut args, MAX_WIDTH),
+                ResourceType::Drive(rt) => rt.render_page(frame, &mut args, MAX_WIDTH),
+                ResourceType::Network(rt) => rt.render_page(frame, &mut args, MAX_WIDTH),
+                ResourceType::Battery(rt) => rt.render_page(frame, &mut args, MAX_WIDTH),
+                ResourceType::Process(rt) => rt.render_page(frame, &mut args, MAX_WIDTH),
             };
         }
     }

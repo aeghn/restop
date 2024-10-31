@@ -68,7 +68,8 @@ impl SidebarAndPage {
             }
         }
         self.sidebar_state.update_blocks(overviews);
-        self.sidebar_state.render(frame, rect.clone());
+        self.sidebar_state
+            .render(frame, rect.clone(), !self.page_focused);
     }
 }
 
@@ -78,7 +79,7 @@ impl Navigator for SidebarAndPage {
             .direction(ratatui::layout::Direction::Horizontal)
             .constraints([
                 Constraint::Fill(1),
-                Constraint::Length(1),
+                Constraint::Length(2),
                 Constraint::Fill(3),
             ])
             .split(rect);

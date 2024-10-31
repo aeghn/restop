@@ -1,60 +1,42 @@
 use std::sync::Arc;
 
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Color, Modifier, Style, Stylize};
 
 pub type SharedTheme = Arc<Theme>;
 
 #[derive(Debug, Clone)]
 pub struct Theme {
-    focused_fg: Color,
-    inactive_fg: Color,
+    fg: Color,
     label_fg: Color,
 }
 
 impl Default for Theme {
     fn default() -> Self {
         Self {
-            focused_fg: Color::Reset,
-            label_fg: Color::DarkGray,
-            inactive_fg: Color::DarkGray,
+            fg: Color::Reset,
+            label_fg: Color::Gray,
         }
     }
 }
 
 impl Theme {
-    pub fn fg(&self, focused: bool) -> Color {
-        if focused {
-            self.focused_fg
-        } else {
-            self.inactive_fg
-        }
+    pub fn fg(&self) -> Color {
+        self.fg
     }
 
     pub fn title(&self, focused: bool) -> Style {
         if focused {
-            Style::default()
-                .fg(self.focused_fg)
-                .add_modifier(Modifier::BOLD)
+            Style::default().add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(self.inactive_fg)
+            Style::default()
         }
     }
 
     pub fn value(&self, focused: bool) -> Style {
-        if focused {
-            Style::default().fg(self.focused_fg)
-        } else {
-            Style::default().fg(self.inactive_fg)
-        }
+        Style::default()
     }
 
     pub fn key(&self, focused: bool) -> Style {
-        if focused {
-            Style::default()
-                .fg(self.label_fg)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(self.label_fg)
-        }
+        Style::default().fg(self.label_fg)
     }
 }
