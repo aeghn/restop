@@ -299,7 +299,7 @@ impl Resource for ResDrive {
             )
             .empty_sep()
             .kv_sep("Total Read", convert_storage(self.read_total.get(), true))
-            .kv_sep("Total Read", convert_storage(self.write_total.get(), true))
+            .kv_sep("Total Write", convert_storage(self.write_total.get(), true))
             .active(args.active)
             .build("Usage")?;
 
