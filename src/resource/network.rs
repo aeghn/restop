@@ -283,7 +283,7 @@ impl Resource for ResNetwork {
             .kv_sep("Manufacturer", self.info.vendor.or_unk_def())
             .kv_sep("Driver Used", self.info.driver_name.or_unk_def())
             .kv_sep("Interface", self.interface().as_str())
-            .kv_sep("Hardware Address", "****************")
+            .kv_sep("Hardware Address", self.info.hw_address.or_nan_def())
             .active(args.active)
             .build("Properties")?;
         blocks.push(props);
