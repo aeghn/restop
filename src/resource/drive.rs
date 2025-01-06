@@ -211,7 +211,7 @@ impl Resource for ResDrive {
     fn do_sensor(req: Self::Req) -> AResult<SensorResultType> {
         let data = DriveData::new(&req);
         let partitions = Partition::fetch()?;
-        Ok(SensorResultType::SyncResult(SensorRsp::DRIVE(
+        Ok(SensorResultType::SyncResult(SensorRsp::Drive(
             ResDriveRsp {
                 data: data,
                 partitions: Some(partitions),

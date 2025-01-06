@@ -1,8 +1,5 @@
 use std::{
-    collections::HashMap,
-    ffi::OsString,
-    fmt::Display,
-    path::{Path, PathBuf},
+    collections::HashMap, ffi::OsString, fmt::Display, path::{Path, PathBuf}
 };
 
 use anyhow::{Context, Result};
@@ -13,6 +10,7 @@ use super::{pci::get_device, Sensor};
 
 #[derive(Debug)]
 pub struct NetworkData {
+    pub sysfs_path: String,
     pub hw_address: Option<String>,
     pub is_virtual: bool,
     pub received_bytes: Result<usize>,
@@ -28,6 +26,7 @@ impl NetworkData {
         let display_name = inner.display_name();
 
         Self {
+            sysfs_path: inner.sysfs_path.to_filepath(),
             hw_address: inner.hw_address.clone(),
             is_virtual,
             received_bytes,

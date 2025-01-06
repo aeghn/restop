@@ -14,7 +14,7 @@ impl Default for Theme {
     fn default() -> Self {
         Self {
             fg: Color::Reset,
-            label_fg: Color::Gray,
+            label_fg: Color::DarkGray,
         }
     }
 }

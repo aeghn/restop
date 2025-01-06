@@ -100,6 +100,7 @@ impl Resource for ResNetwork {
             is_virtual: _,
             display_name: _,
             hw_address: _,
+            sysfs_path: _,
         } = data;
 
         if let (Some(old_time), Some(old_received_bytes), Some(old_sent_bytes)) = (

@@ -354,7 +354,7 @@ impl ProcessCell {
                 None => {
                     return s_label(
                         &self.keep_width(conver_storage_width4(0.).as_str()),
-                        Style::new().fg(Color::Gray),
+                        Style::new().fg(Color::Blue),
                     )
                 }
             },
@@ -363,7 +363,7 @@ impl ProcessCell {
                 None => {
                     return s_label(
                         &self.keep_width(conver_storage_width4(0.).as_str()),
-                        Style::new().fg(Color::Gray),
+                        Style::new().fg(Color::Blue),
                     )
                 }
             },

@@ -111,7 +111,7 @@ pub enum SensorRsp {
     CPU(CpuData),
     Memory(MemoryData),
     GPU(AResult<GpuData>),
-    DRIVE(ResDriveRsp),
+    Drive(ResDriveRsp),
     Network(NetworkData),
     Battery(Arc<BatteryData>),
     Process(ProcessRsp),
@@ -127,10 +127,10 @@ impl SensorRsp {
         match self {
             SensorRsp::CPU(_) => "CPU",
             SensorRsp::Memory(_) => "MEM",
-            SensorRsp::GPU(g) => g.as_ref().map_or("GPU=====", |e| &e.id),
-            SensorRsp::DRIVE(drive) => drive.data.inner.sysfs_path.as_path().to_str().unwrap(),
-            SensorRsp::Network(net) => net.hw_address.as_ref().unwrap(),
-            SensorRsp::Battery(bat) => bat.inner.sysfs_path.as_path().to_str().unwrap(),
+            SensorRsp::GPU(res) => res.as_ref().map_or("GPU", |e| &e.id),
+            SensorRsp::Drive(rsp) => rsp.data.inner.sysfs_path.as_path().to_str().unwrap_or("drive"),
+            SensorRsp::Network(data) => data.sysfs_path.as_str(),
+            SensorRsp::Battery(data) => data.inner.sysfs_path.as_path().to_str().unwrap_or("battery"),
             SensorRsp::Process(_) => "process",
         }
     }
@@ -320,7 +320,7 @@ impl ResourceType {
                     }
                 }
             }
-            SensorRsp::DRIVE(data) => {
+            SensorRsp::Drive(data) => {
                 if let ResourceType::Drive(rt) = self {
                     if rsp_id == rt.get_id() {
                         rt.update_data(data);
