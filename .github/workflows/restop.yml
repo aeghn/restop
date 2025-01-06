@@ -1,7 +1,6 @@
 # credits: https://github.com/It4innovations/hyperqueue/blob/498a162e9f17506bfe4a274f7afe2773bb25c0ee/.github/workflows/release.yml
 
 name: Create release
-
 on:
   workflow_dispatch:
     inputs:
@@ -14,53 +13,53 @@ on:
   push:
     tags:
       - "v*"
-
 jobs:
   create-release:
-    runs-on: ubuntu-20.04
+    name: "Build binaries"
+    runs-on: ${{ matrix.info.os }}
+    container: ${{ matrix.info.container }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        info:
+          - {os: "ubuntu-20.04", target: "x86_64-unknown-linux-gnu", cross: false}
+          - {os: "ubuntu-20.04", target: "aarch64-unknown-linux-gnu", cross: true}
     steps:
       - name: Show GLIBC
         run: ldd --version
-
       - name: Checkout sources
         uses: actions/checkout@v2
         with:
           ref: ${{ github.event.inputs.sha || env.GITHUB_SHA }}
-
       - name: Set env on push
         if: github.event_name == 'push'
         run: |
           echo "INPUT_SHA=$(git rev-parse HEAD)" >> $GITHUB_ENV
           echo "INPUT_TAG=$(git tag --points-at HEAD)" >> $GITHUB_ENV
-
       - name: Set env on trigger
         if: github.event_name == 'workflow_dispatch'
         run: |
           echo "INPUT_SHA=${{ github.event.inputs.sha }}" >> $GITHUB_ENV
           echo "INPUT_TAG=${{ github.event.inputs.tag }}" >> $GITHUB_ENV
-
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           override: true
-
       - uses: Swatinem/rust-cache@v1
-
       - name: Build
         uses: actions-rs/cargo@v1
         with:
           command: build
           args: --release
-
       - name: Prepare archive
         run: |
           strip target/release/restop
           export ARCHIVE_NAME=restop-${{ env.INPUT_TAG }}-linux-x64.tar.gz
           echo "ARCHIVE_NAME=$ARCHIVE_NAME" >> $GITHUB_ENV
           tar -czvf $ARCHIVE_NAME -C target/release restop
-
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
@@ -73,7 +72,6 @@ jobs:
           commitish: ${{ env.INPUT_SHA }}
           draft: false
           prerelease: false
-
       - name: Upload scheduler binary
         uses: actions/upload-release-asset@v1
         env:
