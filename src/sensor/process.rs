@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use process_data::{pci_slot::PciSlot, Containerization, GpuUsageStats, ProcessData};
 use std::{collections::BTreeMap, fmt::Display, process::Command};
 use strum_macros::Display;

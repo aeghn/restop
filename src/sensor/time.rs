@@ -1,5 +1,5 @@
 use anyhow::Context;
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use chrono::{DateTime, NaiveDateTime};
 use once_cell::sync::Lazy;
 use process_data::unix_as_millis;

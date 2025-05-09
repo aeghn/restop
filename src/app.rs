@@ -1,11 +1,12 @@
 use std::{
     cell::Cell,
+    collections::LinkedList,
     io::{stdout, Stdout},
     thread,
     time::{Duration, SystemTime},
 };
 
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use crossterm::{
     event::{read, Event, KeyEvent},
     execute,

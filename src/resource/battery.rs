@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use ratatui::layout::Rect;
 
 use crate::{

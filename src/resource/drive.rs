@@ -6,7 +6,7 @@ use std::{
     time::SystemTime,
 };
 
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use ratatui::text::{Line, Span};
 
 use crate::{

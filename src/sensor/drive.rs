@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use nix::sys::statvfs::statvfs;
 use once_cell::sync::Lazy;
 use regex::Regex;

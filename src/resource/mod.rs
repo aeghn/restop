@@ -13,7 +13,7 @@ use std::{
 };
 
 use battery::ResBattery;
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use cpu::ResCPU;
 use drive::{ResDrive, ResDriveRsp};
 use flume::Sender;

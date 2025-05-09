@@ -1,4 +1,4 @@
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use itertools::Itertools;
 
 use crate::{

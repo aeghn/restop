@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Context, Result};
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use glob::glob;
 use once_cell::sync::Lazy;
 use regex::Regex;

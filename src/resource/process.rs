@@ -5,7 +5,7 @@ use std::{
     thread,
 };
 
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use crossterm::event::KeyModifiers;
 use flume::{Receiver, Sender};
 

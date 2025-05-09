@@ -4,7 +4,7 @@ mod nvidia;
 mod other;
 
 use anyhow::{bail, Context, Result};
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use process_data::pci_slot::PciSlot;
 
 use std::{

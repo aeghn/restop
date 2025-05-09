@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 
 use crate::{
     component::{

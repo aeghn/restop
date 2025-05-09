@@ -1,7 +1,7 @@
 use std::cell::{Cell, RefCell};
 
 use anyhow::Context;
-use chin_tools::wrapper::anyhow::AResult;
+use chin_tools::AResult;
 use ratatui::text::{Line, Span};
 
 use crate::{

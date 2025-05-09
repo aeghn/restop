@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::ring::Ring;
-use chin_tools::utils::stringutils::split_by_len;
+use chin_tools::utils::string_util::split_by_len;
 use ratatui::style::Style;
 
 pub mod grouped_lines;
